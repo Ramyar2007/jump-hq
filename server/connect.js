@@ -101,6 +101,7 @@ export async function claudeStatus() {
 }
 
 export async function githubStatus() {
+  if (process.env.GITHUB_TOKEN) return { ok: true, detail: 'Publishing is set up by Jump HQ Cloud.' };
   return new Promise((resolve) => {
     const p = execFile('git', ['credential', 'fill'], { windowsHide: true, timeout: 10000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' } }, (e, out) => resolve(!e && /password=/.test(out) ? { ok: true, detail: 'Signed in to GitHub on this computer.' } : { ok: false, detail: 'Not signed in to GitHub yet.' }));
     p.stdin.write('protocol=https\nhost=github.com\n\n'); p.stdin.end();

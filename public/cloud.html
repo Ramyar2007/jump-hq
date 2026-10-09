@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jump HQ · Your AI sales team</title>
+<meta name="description" content="Jump HQ finds local businesses that need you, builds each one a free demo, and writes the first WhatsApp message. You approve, you close.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/cloud.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="logo">J</span><b>Jump</b><small>HQ</small></a>
+  <nav>
+    <a href="#how" data-t="nav_how">How it works</a>
+    <a href="#pricing" data-t="nav_price">Pricing</a>
+    <button class="lang" id="lang" type="button">کوردی</button>
+    <button class="ghost" id="openLogin" type="button" data-t="signin">Sign in</button>
+  </nav>
+</header>
+
+<!-- signed-in account view -->
+<section id="account" class="account" hidden>
+  <div class="wrap">
+    <div class="acc-card">
+      <div class="acc-h">
+        <div><p class="eyebrow" data-t="acc_eyebrow">Your account</p><h1 id="accName">—</h1><p class="muted" id="accEmail"></p></div>
+        <a class="btn" href="/" id="openHq" data-t="open_hq">Open my Jump HQ</a>
+      </div>
+      <p class="warn" id="trialOver" hidden data-t="trial_over">Your free week is over. Pick a plan below to keep your team working. Your businesses and demos are kept.</p>
+      <div class="stats">
+        <div><span data-t="st_plan">Plan</span><b id="stPlan">—</b></div>
+        <div><span data-t="st_today">Jobs today</span><b id="stToday">—</b></div>
+        <div><span data-t="st_demos">Demos built</span><b id="stDemos">—</b></div>
+        <div><span data-t="st_leads">Businesses found</span><b id="stLeads">—</b></div>
+      </div>
+      <p class="muted small" id="planMsg"></p>
+      <button class="link" id="logout" type="button" data-t="logout">Sign out</button>
+    </div>
+  </div>
+</section>
+
+<main id="landing">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow light" data-t="hero_eyebrow">Built in Sulaimani</p>
+        <h1 data-t="hero_h">Your AI sales team. It finds the clients, you close them.</h1>
+        <p class="lead" data-t="hero_p">Jump HQ searches for local businesses that need what you sell, checks they are real, builds each one a free demo in Kurdish and English, and writes the first WhatsApp message. Nothing goes out until you approve it.</p>
+        <div class="cta-row">
+          <a class="btn big" href="#start" data-t="cta">Start free for 7 days</a>
+          <span class="note" data-t="cta_note">No install. No AI account. Works on your phone.</span>
+        </div>
+      </div>
+      <figure class="shot"><video src="/promo.mp4" poster="/promo.jpg" muted autoplay loop playsinline></video></figure>
+    </div>
+  </section>
+
+  <section class="proof">
+    <div class="wrap proof-row">
+      <div><b>9</b><span data-t="p1">Sulaimani shops our agents checked today</span></div>
+      <div><b>0</b><span data-t="p2">of them had a website</span></div>
+      <div><b>~1 min</b><span data-t="p3">to build each free demo</span></div>
+      <div><b>$0.10</b><span data-t="p4">AI cost per demo, about</span></div>
+    </div>
+  </section>
+
+  <section id="how" class="how">
+    <div class="wrap">
+      <h2 data-t="how_h">What your team does every day</h2>
+      <ol class="steps">
+        <li><b data-t="s1h">Finds</b><span data-t="s1">Real, active businesses of the kind you pick, in the city you pick: Instagram, Maps, directories.</span></li>
+        <li><b data-t="s2h">Checks</b><span data-t="s2">Is it real, is it open, can you reach it, would it buy? Weak leads are dropped with a reason.</span></li>
+        <li><b data-t="s3h">Builds</b><span data-t="s3">A free demo made from their real content: a website, an app prototype, a small game or a report.</span></li>
+        <li><b data-t="s4h">Writes</b><span data-t="s4">The first WhatsApp message in natural Sorani. An AI Judge checks every word, then you tap Approve.</span></li>
+      </ol>
+      <p class="muted" data-t="how_sleep">Switch on Sleep mode at night: the Judge takes the night shift and you wake up to a report.</p>
+    </div>
+  </section>
+
+  <section id="pricing" class="pricing">
+    <div class="wrap">
+      <h2 data-t="price_h">Simple monthly plans</h2>
+      <p class="muted" data-t="price_p">One sold website pays for a year of Starter.</p>
+      <div class="plans">
+        <article class="plan">
+          <h3 data-t="pl_trial">Free trial</h3>
+          <p class="price">$0 <small data-t="pl_week">for 7 days</small></p>
+          <ul><li data-t="pl_t1">6 team jobs a day</li><li data-t="pl_t2">About 2 searches and 3 demos</li><li data-t="pl_t3">Everything included</li></ul>
+          <button class="btn line" data-plan="trial" data-t="pick_trial">Start free</button>
+        </article>
+        <article class="plan main">
+          <h3>Starter</h3>
+          <p class="price">$15 <small data-t="pl_mo">a month</small></p>
+          <ul><li data-t="pl_s1">20 team jobs a day</li><li data-t="pl_s2">About 30 demos a month</li><li data-t="pl_s3">Sleep mode, AI Judge, phone app</li></ul>
+          <button class="btn" data-plan="starter" data-t="pick">Choose Starter</button>
+        </article>
+        <article class="plan">
+          <h3>Pro</h3>
+          <p class="price">$40 <small data-t="pl_mo">a month</small></p>
+          <ul><li data-t="pl_p1">60 team jobs a day</li><li data-t="pl_p2">About 100 demos a month</li><li data-t="pl_p3">For agencies and small teams</li></ul>
+          <button class="btn line" data-plan="pro" data-t="pick_pro">Choose Pro</button>
+        </article>
+      </div>
+      <p class="muted small" data-t="pay_note">Pay with FIB, card or bank transfer. Cancel any time.</p>
+    </div>
+  </section>
+
+  <section id="start" class="start">
+    <div class="wrap start-grid">
+      <div>
+        <h2 id="formTitle" data-t="form_h">Start your free week</h2>
+        <p class="muted" data-t="form_p">Your own private Jump HQ is ready in a few seconds. Tell the setup assistant what you sell and the whole team adapts.</p>
+      </div>
+      <form id="authForm" class="card form" autocomplete="on">
+        <div class="tabs"><button type="button" class="on" data-mode="signup" data-t="tab_new">New account</button><button type="button" data-mode="login" data-t="signin">Sign in</button></div>
+        <label class="su"><span data-t="f_name">Your name</span><input name="name" maxlength="80" autocomplete="name"></label>
+        <label class="su"><span data-t="f_company">Business name</span><input name="company" maxlength="80" autocomplete="organization"></label>
+        <label><span data-t="f_email">Email</span><input name="email" type="email" required autocomplete="email"></label>
+        <label><span data-t="f_pw">Password (8+ characters)</span><input name="password" type="password" minlength="8" required autocomplete="current-password"></label>
+        <label class="su"><span data-t="f_plan">Plan</span>
+          <select name="plan"><option value="trial" data-t="pl_trial">Free trial</option><option value="starter">Starter · $15</option><option value="pro">Pro · $40</option></select>
+        </label>
+        <p class="err" id="err" role="alert"></p>
+        <button class="btn big" type="submit" id="submit" data-t="go">Create my Jump HQ</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="foot"><div class="wrap"><span>Jump HQ · <a href="https://jumpagency.org">jumpagency.org</a></span><span data-t="foot">SmartSuli AI Hackathon 2026 · Sulaimani</span></div></footer>
+<script src="/cloud.js"></script>
+</body>
+</html>

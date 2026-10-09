@@ -16,6 +16,7 @@ function run(cmd, args, opts = {}) {
 }
 
 export async function githubToken() {
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   const out = await run('git', ['credential', 'fill'], { input: 'protocol=https\nhost=github.com\n\n' });
   const kv = Object.fromEntries(out.split('\n').map((l) => l.split('=')).filter((x) => x.length >= 2).map(([k, ...v]) => [k, v.join('=')]));
   if (!kv.password) throw new Error('No GitHub credentials found in git. Sign in to GitHub once with git on this PC.');

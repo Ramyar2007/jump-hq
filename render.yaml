@@ -1,0 +1,14 @@
+# One-click deploy on Render (Blueprint). Secrets are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: jump-hq
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: CLOUD_ADMIN_KEY
+        generateValue: true

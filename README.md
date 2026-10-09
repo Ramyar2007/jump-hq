@@ -4,6 +4,8 @@
 
 SmartSuli AI Hackathon 2026, open track. Pitch: [PITCH.md](PITCH.md).
 
+**Jump HQ Cloud:** it runs online. Customers sign up on the website, get their own private Jump HQ and pay monthly (free week, then Starter $15 or Pro $40). The agents run on the platform's API key, so customers need no install and no AI account. See [Hosted version](#hosted-version-jump-hq-cloud).
+
 ## What it does
 
 1. **Search.** Pick a kind of business and a city (e.g. *restaurants, Sulaymaniyah*).
@@ -43,7 +45,19 @@ The first page shows a **Getting started** checklist. Everything else is three p
 
 The search → demo pipeline (Scout … Writer) was started on Oct 6, before the hackathon.
 
-## Run it
+## Hosted version (Jump HQ Cloud)
+
+`server/cloud.js` is a gateway in front of many Jump HQs:
+
+- **Website + sign-up** (`public/cloud.html`, English and Kurdish): plans, free week, sign in, account page with usage.
+- **One private Jump HQ per customer**: its own data folder, password and demos. It starts on demand behind the gateway and sleeps after 30 idle minutes. Live updates (WebSocket) pass through.
+- **Plans are enforced on the server** (`HQ_MAX_DAILY_RUNS`, `HQ_LOCK_LIMITS`): a customer can't raise their own limits or switch to a costlier model.
+- **Owner view** `/cloud/admin?key=CLOUD_ADMIN_KEY`: customers, plans, jobs, demos, AI cost this month, revenue and profit. `POST /cloud/admin/paid` marks a customer as paid.
+- **Token saver** (`limits.saver`, on by default): Haiku for most jobs, Sonnet only for the Builder; Opportunity + Strategist + Reviewer run as one Analyst step; a step limit per job.
+
+Deploy: `Dockerfile` + `render.yaml` (Render Blueprint). Set `ANTHROPIC_API_KEY` (agents), `GITHUB_TOKEN` (publishing demos to GitHub Pages) and `CLOUD_ADMIN_KEY`. Locally: `PORT=8080 ANTHROPIC_API_KEY=... node server/cloud.js`.
+
+## Run it on your own computer
 
 Needs Node 20+, and Claude Code installed and signed in on the computer (the agents run on the owner's Claude plan).
 
@@ -68,6 +82,7 @@ server/
   judge.js     hard rules + independent AI review; approve / revise / hold
   connect.js   Telegram alerts, Cloudflare tunnel, link beacon, health checks
   publish.js   approved demos → GitHub Pages
+  cloud.js     Jump HQ Cloud: website, sign-up, plans, one private Jump HQ per customer, owner view
 mcp/hq-mcp.js  the only way agents can change anything: a small MCP server over a token-protected local API
 public/        dashboard (vanilla JS, no build step), map.js = the Live map, i18n.js = all three languages
 app/           phone app (Expo SDK 57, expo-router)

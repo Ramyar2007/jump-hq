@@ -1650,6 +1650,10 @@ export function mount(stage, api) {
     }
   }
   stage.querySelector('.mp-empty')?.remove();
+  // A small handle for scripted camera moves (used to record the promo film).
+  window.__jhqMap = { THREE, camera, controls, agents, shops, prefs, goInside, goStreet, select: (k) => { sel = { type: 'agent', key: k, follow: true }; goInside(k); showCard(); }, setTier: (q) => { prefs.q = q; applyQuality(); }, fps: () => fps.last, dronePos: (k) => drones[k]?.g.position, setView: (v) => { view = v; setLimits(); },
+    rehearse: (k) => { const SECS = [8, 16, 14, 8, 8, 7, 20, 11, 13]; prefs.team = 'demo'; demoStart = performance.now() - (SECS.slice(0, ORDER.indexOf(k)).reduce((x, y) => x + y, 0) + 0.2) * 1000; sync(); },
+    stopFly: () => { fly = null; if (sel) sel.follow = false; } };
   raf = requestAnimationFrame(frame);
 
   const onVis = () => { last = performance.now(); };

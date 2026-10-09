@@ -68,6 +68,10 @@ export const DEFAULTS = {
     pause_at_utilization: 0.9,
     model: 'sonnet',
     max_turns: 60,
+    // Saver: cheap model for most jobs, short runs, and one Analyst call instead of Opportunity + Strategist + Reviewer.
+    saver: true,
+    models: { default: 'haiku', builder: 'sonnet', judge: 'haiku' },
+    turns: { lead: 8, scout: 30, investigator: 20, opportunity: 14, strategist: 10, reviewer: 10, builder: 30, writer: 6, closer: 8 },
   },
   qualify: {
     threshold: 70, // build at or above this score
@@ -135,6 +139,7 @@ export class Config {
   update(patch) {
     const safe = { ...patch };
     delete safe.auth; delete safe.mcp_token;
+    if (process.env.HQ_LOCK_LIMITS) delete safe.limits; // hosted: the plan sets the limits, not the user
     this.data = deepMerge(this.data, safe);
     this.save();
     return this.public();

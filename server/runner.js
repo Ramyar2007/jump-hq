@@ -4,7 +4,7 @@ import { spawn, execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { AGENTS, PIPELINE } from './agents.js';
+import { AGENTS, pipeline, budget } from './agents.js';
 import { id, slugify } from './db.js';
 
 const CLAUDE = process.env.CLAUDE_BIN || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe') : 'claude');
@@ -144,7 +144,8 @@ export class Runner {
       return this.setPaused(true, `Usage at ${Math.round(this.usage.five_hour.utilization * 100)}% of the 5-hour window. Paused to protect your plan; resumes when you press Resume.`);
     }
     while (this.procs.size < lim.concurrency) {
-      if (this.runsToday() >= lim.daily_runs) return this.setPaused(true, `Daily run cap reached (${lim.daily_runs}). Raise it in Settings or resume tomorrow.`);
+      const cap = process.env.HQ_MAX_DAILY_RUNS ? Math.min(lim.daily_runs, Number(process.env.HQ_MAX_DAILY_RUNS)) : lim.daily_runs;
+      if (this.runsToday() >= cap) return this.setPaused(true, process.env.HQ_MAX_DAILY_RUNS ? `Today's limit for your plan is reached (${cap} jobs). It resets tomorrow, or upgrade your plan.` : `Daily run cap reached (${cap}). Raise it in Settings or resume tomorrow.`);
       // Client-facing work first, then qualification, then new hunting; oldest first within a tier.
       const PRI = { closer: 0, writer: 1, builder: 2, reviewer: 3, strategist: 4, opportunity: 5, investigator: 6, scout: 7 };
       const next = this.store.data.runs.filter((r) => r.status === 'queued').sort((a, b) => (PRI[a.agent] ?? 9) - (PRI[b.agent] ?? 9) || a.created.localeCompare(b.created))[0];
@@ -186,8 +187,8 @@ export class Runner {
     const args = [
       '-p', prompt,
       '--output-format', 'stream-json', '--verbose',
-      '--model', cfg.limits.model,
-      '--max-turns', String(cfg.limits.max_turns),
+      '--model', budget(cfg, run.agent).model,
+      '--max-turns', String(budget(cfg, run.agent).turns),
       '--setting-sources', 'project,local',
       '--strict-mcp-config', '--mcp-config', mcpFile,
       '--tools', agent.tools.join(','),
@@ -299,8 +300,9 @@ export class Runner {
     if (!run.autopilot || run.status !== 'done') return;
     const hunt = run.hunt_id && this.store.getHunt(run.hunt_id);
     if (hunt?.status === 'stopped') return;
-    const at = PIPELINE.indexOf(run.agent);
-    const nextKey = PIPELINE[at + 1];
+    const PIPE = pipeline(this.config.data);
+    const at = PIPE.indexOf(run.agent);
+    const nextKey = PIPE[at + 1];
     if (!nextKey) return;
     const inHunt = (l) => (run.hunt_id ? l.hunt_id === run.hunt_id : true);
     const fromRun = run.agent === 'scout'

@@ -1,0 +1,9 @@
+node_modules
+app
+data
+sites
+cloud-data
+.test
+.backup-v1
+.git
+*.log

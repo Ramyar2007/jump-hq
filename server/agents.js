@@ -153,7 +153,11 @@ Subtract for anything that makes a yes unlikely.
 
 Decision rule: score >= ${cfg.qualify.threshold} = "build"; ${cfg.qualify.hold}-${cfg.qualify.threshold - 1} = "hold"; below ${cfg.qualify.hold} = "skip".
 
-Call hq_save_opportunity for each with: score, confidence (0-100, how sure you are given the evidence), decision, summary (2-3 plain sentences a business person understands, e.g. "Busy, well-reviewed restaurant whose menu is only in Instagram photos. A simple mobile site with menu, location and WhatsApp ordering would clearly help."), reasons (list of {point, evidence}), risks, best_angle (the single most compelling honest point for the first message). Finish with a one-line ranking.`,
+Call hq_save_opportunity for each with: score, confidence (0-100, how sure you are given the evidence), decision, summary (2-3 plain sentences a business person understands, e.g. "Busy, well-reviewed restaurant whose menu is only in Instagram photos. A simple mobile site with menu, location and WhatsApp ordering would clearly help."), reasons (list of {point, evidence}), risks, best_angle (the single most compelling honest point for the first message).${cfg.limits.saver ? `
+
+Then, in this same pass (no extra searching: use the profile you already have), for every business you decided "build":
+A. Plan the free ${P(cfg).sample_name}: hq_save_plan with product (one line), why (2 sentences), must_have (list), sections (ordered list), primary_action, languages (${cfg.market.site_languages.join(' + ')}), style, avoid. Only what fits THIS client and can be filled with real content.
+B. Check yourself honestly: real and active, contacts are their own and public, nothing invented, score not inflated, plan fillable. hq_save_review with verdict "approve", "hold" or "reject", checks (list of {check, ok, note}), issues, summary (one plain sentence).` : ''} Finish with a one-line ranking.`,
   },
 
   strategist: {
@@ -304,6 +308,14 @@ ${input.reply_text || ''}
 
 // The order a search goes through. Each step hands its passing businesses to the next.
 export const PIPELINE = ['scout', 'investigator', 'opportunity', 'strategist', 'reviewer', 'builder'];
+// Saver mode: the Analyst (opportunity) also plans and self-checks, so Strategist and Reviewer are skipped.
+export const pipeline = (cfg) => (cfg?.limits?.saver ? ['scout', 'investigator', 'opportunity', 'builder'] : PIPELINE);
+// Which model and how many turns each job gets.
+export function budget(cfg, agent) {
+  const l = cfg.limits || {};
+  if (!l.saver) return { model: l.model || 'sonnet', turns: l.max_turns || 60 };
+  return { model: l.models?.[agent] || l.models?.default || l.model || 'haiku', turns: Math.min(l.max_turns || 60, l.turns?.[agent] || l.max_turns || 60) };
+}
 
 export function listAgents() {
   return Object.entries(AGENTS).map(([key, a]) => ({ key, name: a.name, title: a.title, blurb: a.blurb, fields: a.fields, tools: a.tools, needsLead: Boolean(a.needsLead), batch: Boolean(a.batch) }));

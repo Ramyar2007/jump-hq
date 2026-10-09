@@ -107,7 +107,7 @@ app.use('/agent-api', (req, res, next) => (viaTunnel(req) ? res.status(404).end(
 app.get('/api/ping', (req, res) => res.json({ ok: true, app: 'jump-hq' }));
 
 // ---- auth -----------------------------------------------------------------
-app.get('/api/session', (req, res) => res.json({ authed: authed(req), needsSetup: !config.data.auth.hash, lang: config.data.ui_language }));
+app.get('/api/session', (req, res) => res.json({ authed: authed(req), needsSetup: !config.data.auth.hash, lang: config.data.ui_language, cloud: Boolean(process.env.HQ_CLOUD) }));
 app.post('/api/setup', (req, res) => {
   if (viaTunnel(req)) return res.status(403).json({ error: 'Set up the password on the computer first.' });
   if (config.data.auth.hash) return res.status(400).json({ error: 'Already set up' });

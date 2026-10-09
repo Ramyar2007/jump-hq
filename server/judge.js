@@ -106,7 +106,7 @@ Check: 1) it clearly says it is a concept and not the official website; 2) no in
 // One plain answer from Claude, no tools (used by the setup assistant).
 export function askClaude(text, cfg, cwd, timeout = 150000) {
   return new Promise((resolve, reject) => {
-    const args = ['-p', text, '--output-format', 'json', '--model', cfg.limits.model || 'sonnet', '--max-turns', '1',
+    const args = ['-p', text, '--output-format', 'json', '--model', (cfg.limits.saver && cfg.limits.models?.judge) || cfg.limits.model || 'sonnet', '--max-turns', '1',
       '--setting-sources', 'project,local', '--strict-mcp-config', '--tools', '', '--permission-mode', 'dontAsk', '--no-session-persistence'];
     const child = spawn(CLAUDE, args, { cwd, windowsHide: true });
     let out = '', err = '';
@@ -127,7 +127,7 @@ export function askClaude(text, cfg, cwd, timeout = 150000) {
 
 function runClaude(text, cfg, cwd) {
   return new Promise((resolve, reject) => {
-    const args = ['-p', text, '--output-format', 'json', '--model', cfg.limits.model || 'sonnet', '--max-turns', '1',
+    const args = ['-p', text, '--output-format', 'json', '--model', (cfg.limits.saver && cfg.limits.models?.judge) || cfg.limits.model || 'sonnet', '--max-turns', '1',
       '--setting-sources', 'project,local', '--strict-mcp-config', '--tools', '', '--permission-mode', 'dontAsk', '--no-session-persistence'];
     const child = spawn(CLAUDE, args, { cwd, windowsHide: true });
     let out = '', err = '';

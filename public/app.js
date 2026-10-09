@@ -133,6 +133,7 @@ async function boot() {
   const s = await fetch('/api/session').then((r) => r.json()).catch(() => ({}));
   setLang(s.lang || 'en');
   if (!s.authed) return renderAuth(s.needsSetup);
+  S.cloud = Boolean(s.cloud);
   await refresh(true);
   connect();
   addEventListener('hashchange', render);
@@ -191,7 +192,7 @@ const go = (v) => { location.hash = `#/${v}`; };
 function render(fromRefresh) {
   if (!S.config) return;
   if (!$('#app')) {
-    root.innerHTML = `<div class="shell"><aside class="side"><a class="logo" href="#/home"><i>J</i>Jump <small>HQ</small></a><nav id="nav" style="display:contents"></nav><div class="grow"></div><div class="side-status" id="status"></div></aside><div><main id="app" class="page"></main></div></div>`;
+    root.innerHTML = `<div class="shell"><aside class="side"><a class="logo" href="#/home"><i>J</i>Jump <small>HQ</small></a><nav id="nav" style="display:contents"></nav><div class="grow"></div>${S.cloud ? `<a class="side-acc" href="/welcome">${t('Account and plan')}</a>` : ''}<div class="side-status" id="status"></div></aside><div><main id="app" class="page"></main></div></div>`;
   }
   renderTop();
   // don't throw away what the owner is typing

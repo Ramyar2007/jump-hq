@@ -363,6 +363,7 @@ const ROWS = [
   ['Change password', 'گۆڕینی وشەی نهێنی', 'تغيير كلمة المرور'],
   ['Password changed.', 'وشەی نهێنی گۆڕدرا.', 'تم تغيير كلمة المرور.'],
   ['Sign out', 'چوونەدەرەوە', 'تسجيل الخروج'],
+  ['Account and plan', 'هەژمار و پلان', 'الحساب والخطة'],
   ['How your workspace is protected', 'شوێنی کارەکەت چۆن پارێزراوە', 'كيف تتم حماية مساحة عملك'],
   ['Nothing leaves without you or the Judge: no agent can send a message or publish by itself.', 'هیچ شتێک بەبێ تۆ یان دادوەر ناڕوات: هیچ بریکارێک ناتوانێت بە تەنها نامە بنێرێت یان بڵاوی بکاتەوە.', 'لا يخرج شيء من دونك أو دون الحَكَم: لا يستطيع أي وكيل إرسال رسالة أو النشر بمفرده.'],
   ['Agents have no access to your files or terminal, only to their own working folder.', 'بریکارەکان دەستیان ناگات بە فایل یان تێرمیناڵەکەت، تەنها بە فۆڵدەری کاری خۆیان.', 'لا يصل الوكلاء إلى ملفاتك أو الطرفية، فقط إلى مجلد عملهم.'],
