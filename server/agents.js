@@ -179,7 +179,7 @@ The plan (follow it):
 ${JSON.stringify(ctx.lead.plan || { product: 'A modern mobile-first website', must_have: ['what they offer', 'location', 'contact'] }, null, 2)}
 
 Write the site to this exact folder: ${ctx.siteDir}
-- Main file: ${ctx.siteDir}/index.html (one file: inline CSS, small inline JS only where useful, e.g. the language switch).
+- Main file: ${ctx.siteDir}/index.html (one file: inline CSS, small inline JS only where useful, e.g. the language switch). Hide the other language with rules that always win, e.g. html:not([lang=en]) .en{display:none!important} and html[lang=en] .ku{display:none!important}, so no list or grid shows both languages at once.
 
 Steps:
 1. Collect REAL content from their website and public pages: name, what they offer (menu/services with prices only if published), hours, address, phone, WhatsApp, social links, and URLs of their own photos/logo if available.
