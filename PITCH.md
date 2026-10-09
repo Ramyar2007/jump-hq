@@ -81,7 +81,36 @@ Payment: FIB, card or bank transfer (works from Iraq).
 - **Subscriptions:** 15 freelancers and online shops from the hackathon network and Sulaimani seller groups on Pro ≈ **$300 / month** recurring.
 - **Month 3 target:** 60 paying users (50 Pro, 10 Agency) ≈ **$1,600 / month** recurring.
 
-## 3-minute script (Round 1)
+## Round 1 script v2: tuned to the official criteria (USE THIS)
+
+Say first, when judges ask: **"SS-015. It's registered as Agent Core; Jump HQ is the focused version."**
+Scoring: Build & Demo ×2, AI ×2, Local problem, Feasibility, Pitch (out of 35). So the demo starts by 0:25, and AI is said out loud twice. Keep it ≤3:00 because time breaks ties.
+
+Before they arrive: Jump HQ open on Home (Awake), one demo + one Sorani message waiting in **Needs you**, Grow posts already made, phone paired and unlocked.
+
+**0:00–0:25 Problem (local).** "In Sulaimani, lots of people already earn online: ad makers, designers, Instagram shops. The work isn't their problem; growth is. Upwork and Fiverr don't work from Iraq, so they hunt local clients by hand, one by one. Our agents checked Suli restaurants and salons: 9 found online, **zero** had a website."
+
+**0:25–1:45 Live demo (do it, don't describe it).**
+- "This is Jump HQ: a team of AI agents." Point at the businesses it found in Suli → open one → its free Kurdish demo site.
+- "Before anything goes out, our **AI Judge** checks it." Show the verdict → tap **Approve** → WhatsApp opens with the Sorani message.
+- Grow tab: "It also runs their posts in Kurdish." Show a post or video.
+- Phone: tap **Sleep**. "Now it works all night, and only Judge-approved things go out. Everything else waits for me in the morning."
+
+**1:45–2:15 AI (counts double).** "AI is in every step: Claude agents search, verify facts, score, build the site, write in Sorani, make the posts, and a separate AI judges them. We also **built it with AI**: Claude Code wrote most of the code with us in these two days, the Judge, Sleep mode, the phone app and the three languages."
+
+**2:15–2:45 Feasible + money.** "It's live now, not a mock-up: web, an Android app, and the cloud. Pro is $20 a month and it costs us about $5 to run, so one won client pays for a year. I'm customer number one: I make AI ads for a US brand from Sulaimani."
+
+**2:45–3:00 Close.** "Jump HQ gives every online seller in Sulaimani a team that never sleeps, in Kurdish. Thank you."
+
+### Round 2 (top 6, 5 minutes): what to add
+The criteria change: **Public value, Innovation, Scale/adoption, Business model, Trust.**
+- **Public value:** more Suli businesses online means more local income, and local freelancers stop depending on blocked foreign platforms.
+- **Innovation:** not a chatbot. It's a full pipeline (find → verify → build → write → judge → send) that runs alone overnight, in Sorani.
+- **Scale:** the market config is per country (`krd` now), so the next steps are Erbil and Duhok, then Iraq and the Gulf in Arabic. Any service business can use it, not only websites. An agency or a chamber of commerce could give it to its members.
+- **Business model:** the subscription above, paid by FIB. What we need: Meta/TikTok app review for auto-posting, a small AI budget for the first users, and partners in seller groups.
+- **Trust:** public business info only, never private people. Every fact is marked verified or assumed. A human or the Judge approves before anything is sent. There's a daily cap and an opt-out, and each customer's data is private.
+
+## 3-minute script v1 (older, longer)
 
 **0:00–0:20 Problem.** "In Sulaimani, a lot of people already make money online: video ad makers, designers, marketers, Instagram shops. Their problem isn't the work, it's growth. Freelancers spend hours finding each client, and Upwork and Fiverr don't work from Iraq. Online shops live on posting, and posting every day on four apps is a full-time job."
 
