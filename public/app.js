@@ -36,6 +36,7 @@ const IC = {
   scale: '<path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a4 4 0 0 0 6 0zM19 7l-3 7a4 4 0 0 0 6 0z"/>',
   plug: '<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  map: '<path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
 const ic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
@@ -182,7 +183,7 @@ function connect() {
 }
 
 /* ------------------------------------------------------------------ shell */
-const VIEWS = [['home', 'Home', 'home'], ['prospects', 'Businesses', 'users'], ['demos', 'Demos', 'monitor'], ['messages', 'Messages', 'msg'], ['team', 'AI team', 'team'], ['settings', 'Settings', 'gear']];
+const VIEWS = [['home', 'Home', 'home'], ['prospects', 'Businesses', 'users'], ['demos', 'Demos', 'monitor'], ['messages', 'Messages', 'msg'], ['team', 'AI team', 'team'], ['map', 'Live map', 'map'], ['settings', 'Settings', 'gear']];
 const route = () => (location.hash.replace(/^#\/?/, '') || 'home').split('/')[0];
 const go = (v) => { location.hash = `#/${v}`; };
 
@@ -197,7 +198,8 @@ function render(fromRefresh) {
   if (fromRefresh && focus && /INPUT|TEXTAREA|SELECT/.test(focus.tagName) && (focus.closest('#app') || focus.closest('.drawer'))) { S.pending = true; return; }
   S.pending = false;
   const v = route();
-  const fn = { home: viewHome, prospects: viewProspects, demos: viewDemos, messages: viewMessages, team: viewTeam, settings: viewSettings }[v] || viewHome;
+  document.body.classList.toggle('on-map', v === 'map');
+  const fn = { map: viewMap, home: viewHome, prospects: viewProspects, demos: viewDemos, messages: viewMessages, team: viewTeam, settings: viewSettings }[v] || viewHome;
   const html = fn();
   if (html !== S.lastHtml || v !== S.lastView) { $('#app').innerHTML = html; S.lastHtml = html; S.lastView = v; wire[v]?.(); }
   if (S.lead) renderDrawer();
@@ -607,7 +609,7 @@ function viewTeam() {
     <section class="card"><div class="card-h"><h2>${t('Everything that happened')}</h2></div><div class="feed" id="teamFeed" style="margin-top:8px">${S.activity.slice(0, 80).map(feedRow).join('')}</div></section>
   </div>`;
 }
-function eventRow(e) {
+function eventText(e) {
   let text = '';
   if (e.kind === 'tool') {
     const i = e.input || {};
@@ -615,6 +617,10 @@ function eventRow(e) {
     text = { WebSearch: `${t('Searching')}: “${i.query}”`, WebFetch: `${t('Reading')} ${hostOf(i.url)}`, Write: t('Writing the website'), Edit: t('Improving the website'), Read: t('Reading a file'), hq_add_lead: `${t('Found')}: ${i.business}`, hq_save_profile: t('Saved a profile'), hq_save_opportunity: `${t('Scored')} ${i.score}/100`, hq_save_plan: `${t('Planned')}: ${i.product}`, hq_save_review: `${t('Review')}: ${i.verdict}`, hq_register_site: t('Demo finished'), hq_request_approval: t('Message ready for you'), hq_note: i.text, hq_list_leads: t('Checking who we already know'), hq_get_lead: t('Opening a business'), hq_settings: t('Reading the offer') }[tool] || tool;
   } else if (e.kind === 'text') text = e.text.length > 220 ? `${e.text.slice(0, 220)}…` : e.text;
   else if (e.kind === 'result') text = e.ok ? t('Finished.') : t('Stopped with a problem.');
+  return text;
+}
+function eventRow(e) {
+  const text = eventText(e);
   if (!text) return '';
   return `<div class="ev"><time>${clock(e.at)}</time><span>${esc(text)}</span></div>`;
 }
@@ -637,6 +643,25 @@ wire.team = () => {
   $('#tStop')?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', `/api/runs/${e.currentTarget.dataset.run}/stop`), t('Stopped.')));
   const cur = S.runs.find((r) => r.status === 'running');
   if (cur && !S.events[cur.id]) req('GET', `/api/runs/${cur.id}/events`).then((ev) => { S.events[cur.id] = ev; if (route() === 'team') { const f = $('#liveFeed'); if (f) { f.innerHTML = ev.map(eventRow).filter(Boolean).join(''); f.scrollTop = f.scrollHeight; } } }).catch(() => {});
+};
+
+/* ---------------------------------------------------------------- LIVE MAP */
+// The 3D street (public/map.js) loads only when this page opens; it stops by itself when the page closes.
+function viewMap() {
+  return `<div class="mapview"><div class="map-stage" id="mapStage"><div class="mp-empty">${t('Loading the map…')}</div></div></div>`;
+}
+const fullEvents = new Set();
+wire.map = async () => {
+  const stage = $('#mapStage');
+  try {
+    await Promise.race([Promise.all(['800 40px "Noto Sans Arabic"', '800 40px "Plus Jakarta Sans"'].map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 2500))]);
+    const m = await import('/map.js');
+    if (!stage.isConnected) return;
+    m.mount(stage, {
+      t, eventText, getState: () => S,
+      ensureEvents: (id) => { if (fullEvents.has(id)) return; fullEvents.add(id); req('GET', `/api/runs/${id}/events`).then((ev) => { S.events[id] = ev; }).catch(() => fullEvents.delete(id)); },
+    });
+  } catch (e) { stage.innerHTML = `<div class="mp-empty">${esc(e.message)}</div>`; }
 };
 
 /* --------------------------------------------------------------- SETTINGS */
