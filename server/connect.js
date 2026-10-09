@@ -70,6 +70,31 @@ export class Tunnel {
   }
 }
 
+// ---- Link beacon: the free public link changes when the computer restarts. The current one is
+// written to a secret GitHub gist; a paired phone reads it when it loses the connection.
+export class Beacon {
+  constructor({ config, token }) { this.config = config; this.token = token; this.last = ''; }
+  get rawUrl() { const g = this.config.data.connections.phone.gist; return g ? `https://gist.githubusercontent.com/${g.owner}/${g.id}/raw/hq.json` : ''; }
+  async publish(url) {
+    if (!url || url === this.last) return;
+    try {
+      const tok = await this.token();
+      const h = { authorization: `Bearer ${tok}`, accept: 'application/vnd.github+json', 'user-agent': 'jump-hq', 'content-type': 'application/json' };
+      const files = { 'hq.json': { content: JSON.stringify({ url, at: new Date().toISOString() }) } };
+      const g = this.config.data.connections.phone.gist;
+      if (g?.id) {
+        const r = await fetch(`https://api.github.com/gists/${g.id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ files }), signal: AbortSignal.timeout(15000) });
+        if (r.ok) { this.last = url; return; }
+      }
+      const r = await fetch('https://api.github.com/gists', { method: 'POST', headers: h, body: JSON.stringify({ description: 'Jump HQ link', public: false, files }), signal: AbortSignal.timeout(15000) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.message || r.status);
+      this.config.update({ connections: { phone: { gist: { id: j.id, owner: j.owner?.login } } } });
+      this.last = url;
+    } catch { /* the phone can still be re-paired by hand */ }
+  }
+}
+
 export async function claudeStatus() {
   const bin = process.env.CLAUDE_BIN || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe') : 'claude');
   return new Promise((resolve) => execFile(bin, ['--version'], { windowsHide: true, timeout: 15000 }, (e, out) => resolve(e ? { ok: false, detail: 'Claude Code is not installed or not signed in on this computer.' } : { ok: true, detail: String(out).trim() })));

@@ -11,10 +11,10 @@ import nodemailer from 'nodemailer';
 import { Store, STAGES } from './db.js';
 import { Config } from './config.js';
 import { Runner } from './runner.js';
-import { Publisher } from './publish.js';
+import { Publisher, githubToken } from './publish.js';
 import { listAgents, AGENTS } from './agents.js';
 import { Judge } from './judge.js';
-import { Telegram, Tunnel, lanUrl, claudeStatus, githubStatus } from './connect.js';
+import { Telegram, Tunnel, Beacon, lanUrl, claudeStatus, githubStatus } from './connect.js';
 import QRCode from 'qrcode';
 const AGENT_FROM = Object.fromEntries(Object.entries(AGENTS).map(([k, a]) => [k, a.from]));
 
@@ -47,7 +47,8 @@ const publisher = new Publisher({ sitesDir: runner.sitesDir, config });
 store.onChange((kind, payload) => broadcast({ type: 'change', kind, payload }));
 const judge = new Judge({ store, config, root: ROOT, sitesDir: runner.sitesDir });
 const telegram = new Telegram(config);
-const tunnel = new Tunnel({ port: PORT, onUrl: (u) => { broadcast({ type: 'link', url: u }); if (u) store.log(`Phone link is live: ${u}`, { kind: 'note' }); } });
+const beacon = new Beacon({ config, token: githubToken });
+const tunnel = new Tunnel({ port: PORT, onUrl: (u) => { broadcast({ type: 'link', url: u }); if (u) { store.log(`Phone link is live: ${u}`, { kind: 'note' }); beacon.publish(u); } } });
 
 // ---- sessions -------------------------------------------------------------
 // A session is a browser cookie or a paired phone. Phones send "Authorization: Bearer <token>".
@@ -131,7 +132,7 @@ function issueDevice(name) {
   sessions.set(t, dev);
   saveSessions();
   store.log(`Phone paired: ${dev.name}`, { kind: 'done' });
-  return { token: t, company: config.data.company.name, lang: config.data.ui_language };
+  return { token: t, company: config.data.company.name, lang: config.data.ui_language, beacon: beacon.rawUrl };
 }
 app.post('/api/pair/claim', (req, res) => {
   const lim = limited(req, res, 'pair'); if (!lim) return;
@@ -400,9 +401,10 @@ api.post('/pair', async (req, res) => {
   if (!tunnel.url && config.data.connections.phone.public_link) await tunnel.start();
   for (let i = 0; i < 40 && !tunnel.url; i++) await new Promise((r) => setTimeout(r, 250));
   const url = tunnel.url || (HOST === '0.0.0.0' ? lanUrl(PORT) : '');
-  const payload = `jumphq://pair?u=${encodeURIComponent(url)}&c=${code}`;
+  if (tunnel.url) await beacon.publish(tunnel.url);
+  const payload = `jumphq://pair?u=${encodeURIComponent(url)}&c=${code}${beacon.rawUrl ? `&b=${encodeURIComponent(beacon.rawUrl)}` : ''}`;
   const svg = await QRCode.toString(payload, { type: 'svg', margin: 1, color: { dark: '#0f1b33', light: '#ffffff' } });
-  res.json({ code, url, payload, svg, expires: Date.now() + 10 * 60e3 });
+  res.json({ code, url, beacon: beacon.rawUrl, payload, svg, expires: Date.now() + 10 * 60e3 });
 });
 api.get('/devices', (req, res) => res.json(devices()));
 api.delete('/devices/:id', (req, res) => {

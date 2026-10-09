@@ -23,7 +23,7 @@ export type Boot = {
   runner: any;
   stats: any;
 };
-type Conn = { url: string; token: string; company?: string } | null;
+type Conn = { url: string; token: string; company?: string; beacon?: string } | null;
 
 const KEY = 'jumphq.conn';
 const store = {
@@ -75,16 +75,39 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
 
   const applyLang = useCallback((code: string) => { setLang(code); setLangState(code); }, []);
 
-  const req = useCallback(async (method: string, path: string, body?: any) => {
+  // The computer's public link changes when it restarts; it posts the new one to its beacon.
+  const relinking = useRef<Promise<boolean> | null>(null);
+  const relink = useCallback(() => {
+    const c = connRef.current;
+    if (!c?.beacon) return Promise.resolve(false);
+    relinking.current ||= (async () => {
+      try {
+        const j = await (await fetch(`${c.beacon}?t=${Date.now()}`)).json();
+        if (j?.url && j.url !== c.url) {
+          const next = { ...c, url: j.url };
+          connRef.current = next;
+          await store.set(next);
+          setConn(next);
+          return true;
+        }
+      } catch {}
+      return false;
+    })().finally(() => { setTimeout(() => { relinking.current = null; }, 15000); });
+    return relinking.current;
+  }, []);
+
+  const req = useCallback(async (method: string, path: string, body?: any, retried = false): Promise<any> => {
     const c = connRef.current;
     if (!c) throw new Error(tr('Not paired'));
     let r: Response;
     try {
       r = await fetch(`${c.url}${path}`, { method, headers: { 'content-type': 'application/json', authorization: `Bearer ${c.token}` }, body: body ? JSON.stringify(body) : undefined });
     } catch {
+      if (!retried && (await relink())) return req(method, path, body, true);
       setOnline(false);
       throw new Error(tr('Cannot reach your computer. Is Jump HQ running?'));
     }
+    if (!retried && [502, 530, 1033].includes(r.status) && (await relink())) return req(method, path, body, true);
     setOnline(true);
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) { await store.set(null); setConn(null); setData(null); throw new Error(tr('This phone was removed. Pair it again.')); }
@@ -107,6 +130,7 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
     if (!conn) return;
     let alive = true;
     let retry: any;
+    let fails = 0;
     const open = () => {
       const u = `${conn.url.replace(/^http/, 'ws')}/ws?t=${conn.token}`;
       const s = new WebSocket(u);
@@ -118,19 +142,19 @@ export function ApiProvider({ children }: { children: React.ReactNode }) {
           if (['change', 'mode', 'runner'].includes(msg.type)) soon();
         } catch {}
       };
-      s.onopen = () => setOnline(true);
-      s.onclose = () => { if (alive) retry = setTimeout(open, 3000); };
+      s.onopen = () => { fails = 0; setOnline(true); };
+      s.onclose = () => { if (!alive) return; fails++; if (fails % 3 === 0) relink(); retry = setTimeout(open, 3000); };
     };
     open();
     refresh();
     const poll = setInterval(refresh, 30000);
     return () => { alive = false; clearTimeout(retry); clearInterval(poll); ws.current?.close(); };
-  }, [conn, refresh, soon]);
+  }, [conn, refresh, soon, relink]);
 
   useEffect(() => { store.get().then((c) => { setConn(c); setReady(true); }); }, []);
 
   const finish = useCallback(async (url: string, r: any) => {
-    const c = { url, token: r.token, company: r.company };
+    const c = { url, token: r.token, company: r.company, beacon: r.beacon || '' };
     await store.set(c);
     if (r.lang) applyLang(r.lang);
     setConn(c);

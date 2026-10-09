@@ -12,24 +12,60 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.jumpagency.hq",
-      "infoPlist": { "NSCameraUsageDescription": "Jump HQ uses the camera to scan the pairing code on your computer." }
+      "infoPlist": {
+        "NSCameraUsageDescription": "Jump HQ uses the camera to scan the pairing code on your computer."
+      }
     },
     "android": {
       "package": "org.jumpagency.hq",
-      "adaptiveIcon": { "backgroundColor": "#ff6b2c", "foregroundImage": "./assets/adaptive-icon.png" },
-      "permissions": ["CAMERA", "android.permission.CAMERA"],
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "adaptiveIcon": {
+        "backgroundColor": "#ff6b2c",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "predictiveBackGestureEnabled": false
     },
-    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/icon.png" },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/icon.png"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      ["expo-splash-screen", { "image": "./assets/splash.png", "imageWidth": 140, "resizeMode": "contain", "backgroundColor": "#0f1b33" }],
-      ["expo-camera", { "cameraPermission": "Jump HQ uses the camera to scan the pairing code on your computer.", "recordAudioAndroid": false }]
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 140,
+          "resizeMode": "contain",
+          "backgroundColor": "#0f1b33"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Jump HQ uses the camera to scan the pairing code on your computer.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
-    "experiments": { "typedRoutes": false },
-    "owner": "ramahsha"
+    "experiments": {
+      "typedRoutes": false
+    },
+    "owner": "ramahsha",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "25d1385a-879f-478f-891a-3a023303eb0f"
+      }
+    }
   }
 }
