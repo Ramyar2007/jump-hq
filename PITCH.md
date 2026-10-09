@@ -10,6 +10,8 @@ Most restaurants, salons, clinics and shops in Sulaimani live only on Instagram 
 
 The people who could fix this, Sulaimani's young web developers and small studios, can't reach them at scale. Finding businesses by hand, checking them, designing a sample and writing a message in good Sorani takes hours per business. Upwork, Fiverr and Stripe payouts don't work from Iraq, so local clients are the market. Most of these developers give up after a few tries.
 
+**Real numbers, from our own agents today (9 Oct):** they searched Sulaimani restaurants and beauty salons. Only 9 could be found online at all, and **0 of the 9 had a website**. The top salon has 28,400 Instagram followers and posts almost daily, yet its bio links only to a map pin.
+
 **Problem in one sentence:** Sulaimani businesses stay offline because selling them a website one by one is too slow for the developers who could build it.
 
 ## The solution
@@ -66,7 +68,7 @@ AI does every step: search, checking the facts, scoring, product planning, build
 
 ## 3-minute script (Round 1)
 
-**0:00–0:20 Problem.** "Walk down Salim Street. Most of the restaurants and salons have no website, only Instagram photos. And Sulaimani's young developers can't sell to them fast enough. Doing it one by one is too slow."
+**0:00–0:20 Problem.** "Walk down Salim Street: restaurants and salons live on Instagram, not on the web. This morning our agents checked nine of them in Sulaimani. Zero had a website, even a salon with 28,000 followers. And our young developers can't sell to them one by one fast enough."
 
 **0:20–0:45 Solution.** "Jump HQ is an AI sales team. I choose *restaurants, Sulaymaniyah*. Eight agents find them, check they're real, score them, build each one a free website in Kurdish, and write the WhatsApp message in Sorani."
 
