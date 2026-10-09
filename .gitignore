@@ -4,3 +4,4 @@ sites/
 .test/
 .backup-v1/
 cloud-data/
+PUBLIC_LINK.txt

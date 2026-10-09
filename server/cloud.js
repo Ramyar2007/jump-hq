@@ -17,6 +17,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 8080);
 const DATA = path.resolve(process.env.CLOUD_DATA || path.join(ROOT, 'cloud-data'));
 const ADMIN_KEY = process.env.CLOUD_ADMIN_KEY || '';
+// Hosting from a laptop on the owner's own Claude login: cap how many sign-ups it accepts.
+const MAX_ACCOUNTS = Number(process.env.CLOUD_MAX_ACCOUNTS || 0);
 const IDLE_MS = 30 * 60e3;
 const BASE_PORT = 6100;
 
@@ -159,6 +161,7 @@ async function cloudApi(req, res, url) {
     const email = String(b.email || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(res, 400, { error: 'Enter a real email address.' });
     if (String(b.password || '').length < 8) return json(res, 400, { error: 'Use at least 8 characters for the password.' });
+    if (MAX_ACCOUNTS && db.accounts.length >= MAX_ACCOUNTS) return json(res, 403, { error: 'Sign-ups are full for now. Ask us on WhatsApp for a place.' });
     if (db.accounts.some((a) => a.email === email)) return json(res, 400, { error: 'This email already has an account. Sign in instead.' });
     const plan = PLANS[b.plan] ? b.plan : 'trial';
     const a = { id: crypto.randomBytes(6).toString('hex'), email, name: String(b.name || '').slice(0, 80) || email.split('@')[0], plan, paid: plan === 'trial', created: new Date().toISOString(), ...hashPw(b.password) };
@@ -289,5 +292,5 @@ server.on('upgrade', async (req, socket, head) => {
   socket.on('error', () => up.destroy());
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`Jump HQ Cloud on :${PORT} (${db.accounts.length} customers)${process.env.ANTHROPIC_API_KEY ? '' : ' WARNING: no ANTHROPIC_API_KEY set'}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Jump HQ Cloud on :${PORT} (${db.accounts.length} customers)${process.env.ANTHROPIC_API_KEY ? '' : ' (no ANTHROPIC_API_KEY: agents use the Claude Code login on this computer)'}`));
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { for (const p of procs.values()) p.child.kill(); process.exit(0); });
