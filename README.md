@@ -4,7 +4,7 @@
 
 Jump HQ is a **public online service**. Customers sign up on our website, get their own private Jump HQ in seconds and pay monthly. There's nothing to install and no AI account needed: the agents run on our side.
 
-SmartSuli AI Hackathon 2026, open track. Pitch and judge Q&A: [PITCH.md](PITCH.md).
+SmartSuli AI Hackathon 2026, open track. Pitch and judge Q&A: [PITCH.md](PITCH.md) · Slides: [docs/Jump_HQ_Pitch.pptx](docs/Jump_HQ_Pitch.pptx)
 
 ## Plans
 
