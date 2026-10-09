@@ -481,6 +481,31 @@ api.patch('/leads/:id', (req, res) => {
   lead ? res.json(lead) : res.status(404).json({ error: 'No such lead' });
 });
 api.delete('/leads/:id', (req, res) => { store.deleteLead(req.params.id); res.json({ ok: true }); });
+// The owner adds a business they know (walked past it, saw its Instagram). Build its demo now, or let the team check it first.
+api.post('/leads', (req, res) => {
+  const b = req.body || {};
+  const business = String(b.business || '').trim();
+  if (!business) return res.status(400).json({ error: 'Type the name of the business.' });
+  const link = String(b.link || '').trim();
+  const host = (() => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  const socials = {};
+  if (/instagram\.com/.test(host)) socials.instagram = link;
+  else if (/facebook\.com|fb\.com/.test(host)) socials.facebook = link;
+  else if (/tiktok\.com/.test(host)) socials.tiktok = link;
+  const market = config.market(b.market_id);
+  const { lead, duplicate } = store.addLead({
+    business, business_local: String(b.business_local || ''), niche: String(b.niche || ''), city: String(b.city || market.cities[0] || ''),
+    country: market.country, market_id: market.id, socials, website: host && !Object.keys(socials).length && !/google\.|goo\.gl/.test(host) ? link : '',
+    maps_url: /google\.|goo\.gl/.test(host) ? link : '', phone: String(b.phone || ''), whatsapp: String(b.phone || ''), notes: String(b.notes || ''), source: 'Added by you',
+  });
+  if (duplicate) return res.status(400).json({ error: `${lead.business} is already in your list.` });
+  store.log(say('found', { b: lead.business, city: lead.city }), { kind: 'lead' });
+  try {
+    if (b.build !== false) { store.updateLead(lead.id, { stage: 'approved' }, 'Added by you: build the demo'); runner.enqueue('builder', { lead_id: lead.id }); }
+    else runner.enqueue('investigator', { lead_ids: [lead.id] }, { autopilot: true });
+  } catch (e) { return res.status(400).json({ error: e.message }); }
+  res.json(store.getLead(lead.id));
+});
 
 // Approvals: approve (and send if SMTP is configured), reject, edit, mark sent manually.
 async function sendEmail(a) {

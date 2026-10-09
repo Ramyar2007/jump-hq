@@ -268,6 +268,7 @@ function viewHome() {
       <div class="finder-foot">
         <label>${t('Build demos for the best')} <select id="hBuild">${[1, 3, 5, 10].map((n) => `<option ${n === 3 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label>${t('Market')} <select id="hMarket">${Object.values(S.config.markets).map((x) => `<option value="${x.id}" ${x.id === S.market ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>
+        <button class="btn sm outline" id="hAdd">+ ${t('Add a business you know')}</button>
         <span>${t('Messages go by')} ${m.channel === 'whatsapp' ? 'WhatsApp' : t('Email')} · ${esc(m.language)} · ${t('only after you approve.')}</span>
       </div>
     </section>
@@ -320,6 +321,7 @@ wire.home = () => {
   $('[data-seen]')?.addEventListener('click', () => { try { localStorage.setItem('hq_seen_night', S.night.start); } catch {} S.lastHtml = null; render(); });
   $$('[data-todo]').forEach((b) => (b.onclick = () => todo[+b.dataset.todo].run(b)));
   $('#hMarket').onchange = (e) => { S.market = e.target.value; render(); };
+  $('#hAdd').onclick = () => openAddBusiness();
   $('#hGo').onclick = (e) => act(e.currentTarget, () => req('POST', '/api/hunts', { market_id: S.market, city: $('#hCity').value, niche: $('#hNiche').value, count: +$('#hCount').value, build: +$('#hBuild').value }), t('Search started. You can close this page, the team keeps working.'));
   $('#hStop')?.addEventListener('click', (e) => { if (confirm(t('Stop this search? Work already done is kept.'))) act(e.currentTarget, () => req('POST', `/api/hunts/${S.hunts[0].id}/stop`), t('Search stopped.')); });
 };
@@ -537,6 +539,35 @@ wire.messages = () => {
   $$('[data-lead]').forEach((b) => (b.onclick = () => openLead(b.dataset.lead)));
   wireJudge();
 };
+
+// The owner knows a business (walked past it, follows it on Instagram): add it and build its demo now.
+function openAddBusiness() {
+  const m = market(S.market);
+  const p = document.createElement('div');
+  p.className = 'preview';
+  p.style.justifyContent = 'center';
+  p.innerHTML = `<div class="card modal-card"><h2>${t('Add a business you know')}</h2>
+    <p class="muted" style="margin:4px 0 16px">${t('Paste its Instagram, Facebook, Google Maps or website link. The Builder makes its demo website in a minute or two.')}</p>
+    <div class="grid" style="gap:12px">
+      <label class="field"><span>${t('Business name')}</span><input id="aName" dir="auto"></label>
+      <label class="field"><span>${t('Link (Instagram, Facebook, Maps or website)')}</span><input id="aLink" dir="ltr" placeholder="https://instagram.com/…"></label>
+      <div class="form-grid"><label class="field"><span>${t('Kind of business')}</span><select id="aNiche">${(m.niches || []).map((n) => `<option>${esc(n)}</option>`).join('')}</select></label>
+        <label class="field"><span>${t('City')}</span><select id="aCity">${(m.cities || []).map((c) => `<option>${esc(c)}</option>`).join('')}</select></label></div>
+      <label class="field"><span>${t('Phone or WhatsApp (optional)')}</span><input id="aPhone" dir="ltr"></label>
+      <label class="field"><span>${t('What do you know about it? (optional)')}</span><textarea id="aNotes" dir="auto" rows="3"></textarea></label>
+    </div>
+    <div class="row-actions" style="margin-top:16px"><button class="btn primary" id="aBuild">${ic('build')}${t('Build its demo now')}</button><button class="btn outline" id="aCheck">${t('Let the team check it first')}</button><span class="grow"></span><button class="btn ghost" id="aX">${t('Cancel')}</button></div></div>`;
+  document.body.appendChild(p);
+  $('#aName', p).focus();
+  $('#aX', p).onclick = () => p.remove();
+  const send = async (btn, build) => {
+    const body = { market_id: S.market, business: $('#aName', p).value, link: $('#aLink', p).value, niche: $('#aNiche', p).value, city: $('#aCity', p).value, phone: $('#aPhone', p).value, notes: $('#aNotes', p).value, build };
+    const r = await act(btn, () => req('POST', '/api/leads', body), build ? t('The Builder is making its demo. It shows up in Demos in a minute or two.') : t('Added. The team is checking it.'));
+    if (r) p.remove();
+  };
+  $('#aBuild', p).onclick = (e) => send(e.currentTarget, true);
+  $('#aCheck', p).onclick = (e) => send(e.currentTarget, false);
+}
 
 function openReply(l) {
   if (!l) return;

@@ -7,6 +7,7 @@ import { C } from '@/lib/theme';
 import { agentName, money, needsYou } from '@/lib/logic';
 import { Btn, Card, Empty, H, Row, Screen, T, clock, useRtl } from '@/components/ui';
 import { ModeCard, NightReport } from '@/components/ModeCard';
+import { AddBusiness } from '@/components/AddBusiness';
 
 function Chips({ items, value, onChange }: { items: string[]; value: string; onChange: (v: string) => void }) {
   const rtl = useRtl();
@@ -102,6 +103,7 @@ export default function Home() {
         <Chips items={['5', '10', '20', '30']} value={count} onChange={setCount} />
         <Btn kind="primary" label={t('Start search')} icon={<Search size={18} color="#fff" />} busy={busy} onPress={start} style={{ marginTop: 6 }} />
       </Card>
+      <AddBusiness />
 
       <Row wrap gap={10}>
         {([['Businesses checked', st.leads], ['Demos built', st.demos], ['Messages sent', st.sentTotal], ['Clients', st.won], ['Monthly income', st.mrr ? money(data, st.mrr) : '0']] as const).map(([k, v]) => (

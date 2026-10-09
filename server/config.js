@@ -22,6 +22,7 @@ export const DEFAULTS = {
       site_languages: ['Kurdish Sorani', 'English'],
       channel: 'whatsapp',
       phone_prefix: '964',
+      notes: 'Most local businesses here have no website and few online reviews. Their real presence is Instagram, Facebook, TikTok, WhatsApp and Google Maps, and Instagram often blocks automated reading. A missing website or few reviews is normal here and is exactly the opportunity, not a red flag. A business with an active social page, a map listing or a delivery-app listing counts as real and trading unless there is evidence it closed.',
       build_price: 350000,
       monthly_price: 35000,
       cities: ['Sulaymaniyah', 'Erbil', 'Duhok', 'Halabja', 'Ranya', 'Kalar', 'Zakho', 'Koya'],
