@@ -251,8 +251,8 @@ function viewHome() {
   const todo = needsYou();
   const hr = new Date().getHours();
   return `
-  <div class="page-head"><div><h1>Good ${hr < 12 ? 'morning' : hr < 18 ? 'afternoon' : 'evening'}${S.config.company.sender_name ? `, ${esc(S.config.company.sender_name)}` : ''}</h1>
-    <p>${todo.length ? `${todo.length} thing${todo.length > 1 ? 's' : ''} need${todo.length > 1 ? '' : 's'} you. Everything else is handled.` : 'You are all caught up.'}</p></div></div>
+  <div class="page-head"><div><h1>${t(hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening')}${S.config.company.sender_name ? `, ${esc(S.config.company.sender_name)}` : ''}</h1>
+    <p>${todo.length ? `${todo.length} ${t('things need you. Everything else is handled.')}` : t('You are all caught up.')}</p></div></div>
 
   <div class="grid" style="gap:16px">
     ${nightCard()}
@@ -506,12 +506,12 @@ function viewMessages() {
   <div class="grid">${list.length ? list.map((a) => {
     const l = S.leads.find((x) => x.id === a.lead_id);
     const wa = a.type === 'whatsapp';
-    const head = `<div class="msg-top"><b>${esc(l?.business || a.title)}</b><span class="badge ${wa ? 'good' : 'info'}">${wa ? 'WhatsApp' : 'Email'}</span><span class="to">to ${esc(a.to || '—')}</span><span class="grow"></span><span class="muted small">${ago(a.created)}</span></div>`;
+    const head = `<div class="msg-top"><b>${esc(l?.business || a.title)}</b><span class="badge ${wa ? 'good' : 'info'}">${wa ? 'WhatsApp' : t('Email')}</span><span class="to" dir="ltr">${esc(a.to || '—')}</span><span class="grow"></span><span class="muted small">${ago(a.created)}</span></div>`;
     if (a.status === 'pending') return `<article class="card msg-card" data-a="${a.id}">${head}
       ${judgeBox(a.judge, { judging: a.judging, id: a.id, kind: 'message' })}
       <label class="field"><span>${t('Send to')}</span><input data-k="to" value="${esc(a.to)}"></label>
       ${wa ? '' : `<label class="field"><span>${t('Subject')}</span><input data-k="subject" value="${esc(a.subject)}"></label>`}
-      <label class="field"><span>Message ${wa ? '<em style="font-style:normal;color:var(--muted);font-weight:400">(the English part below the line is only for you; it is not sent)</em>' : ''}</span><textarea data-k="body" dir="auto" rows="${Math.min(16, (a.body.match(/\n/g) || []).length + 3)}">${esc(a.body)}</textarea></label>
+      <label class="field"><span>${t('Message')} ${wa ? `<em style="font-style:normal;color:var(--muted);font-weight:400">(${t('the English part below the line is only for you; it is not sent')})</em>` : ''}</span><textarea data-k="body" dir="auto" rows="${Math.min(16, (a.body.match(/\n/g) || []).length + 3)}">${esc(a.body)}</textarea></label>
       <div class="row-actions"><button class="btn primary" data-ok>${ic('check')}${t('Approve')}${smtp && !wa ? ` ${t('and send')}` : ''}</button><button class="btn ghost" data-save>${t('Save changes')}</button><span class="grow"></span><button class="btn ghost danger" data-no>${t('Discard')}</button></div></article>`;
     if (a.status === 'approved') return `<article class="card msg-card" data-a="${a.id}">${head}${a.auto ? `<div class="judge good slim"><span class="j-ic">${ic('scale')}</span><div><b>${t('Approved by the Judge while you slept')}</b>${a.judge ? `<span>${a.judge.score}/100 · ${esc(a.judge.summary)}</span>` : ''}</div></div>` : ''}<div class="msg-body ${wa ? 'wa' : ''}" dir="auto">${esc(wa ? a.body.split(/\n\s*-{3,}\s*\n|\n\s*\(?English( version| translation)?\)?\s*:?\s*\n/i)[0] : a.body)}</div>
       <div class="row-actions">${wa ? (a.wa_link ? `<a class="btn primary" href="${esc(a.wa_link)}" target="_blank" rel="noopener" data-opened>${ic('send')}${t('Open in WhatsApp')}</a>` : `<span class="badge warn">${t('No WhatsApp number: copy the text and send it yourself')}</span>`) : `<a class="btn primary" href="mailto:${esc(a.to)}?subject=${encodeURIComponent(a.subject)}&body=${encodeURIComponent(a.body)}">${ic('send')}Open in email</a>`}
