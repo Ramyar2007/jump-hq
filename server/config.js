@@ -67,6 +67,24 @@ export const DEFAULTS = {
     base_url: '',
   },
   smtp: { host: 'smtp.zoho.com', port: 465, secure: true, user: '', pass: '' },
+  // Awake = the owner approves everything. Sleep = the Judge approves; anything risky waits for the morning.
+  mode: 'awake',
+  ui_language: 'en', // en | ckb | ar: the dashboard, the phone app and everything the team writes for the owner
+  sleep: {
+    schedule: false, // switch to Sleep by itself every night
+    from: '23:00',
+    to: '08:00',
+    judge_min_score: 80, // the Judge must give at least this, with low risk, for anything to go out alone
+    auto_publish: true, // Judge-approved demos go online by themselves
+    auto_send: true, // Judge-approved emails are sent by themselves (needs automatic email)
+    max_sends: 8, // most messages that go out per night
+    searches: [], // night plan: [{ niche, city, count, build, market_id }]
+    second_opinion: true, // in Awake mode the Judge still reviews and shows its verdict
+  },
+  connections: {
+    telegram: { enabled: false, token: '', chat_id: '' },
+    phone: { public_link: true },
+  },
   auth: { salt: '', hash: '' },
   mcp_token: '',
 };
@@ -118,6 +136,7 @@ export class Config {
     const d = structuredClone(this.data);
     delete d.auth; delete d.mcp_token;
     d.smtp = { ...d.smtp, pass: d.smtp.pass ? '••••••••' : '' };
+    d.connections.telegram = { ...d.connections.telegram, token: d.connections.telegram.token ? '••••••••' : '' };
     d.has_password = Boolean(this.data.auth.hash);
     return d;
   }
