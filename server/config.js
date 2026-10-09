@@ -43,6 +43,22 @@ export const DEFAULTS = {
       niches: ['independent restaurants', 'cafes and coffee shops', 'barbers', 'beauty salons', 'dental clinics', 'plumbers and electricians'],
     },
   },
+  // What this company sells and to whom. The setup assistant writes it; every agent reads it.
+  // Defaults = a web studio selling websites to local businesses.
+  profile: {
+    configured: false,
+    what: 'Custom websites for local businesses',
+    kind: 'websites',
+    audience: 'Independent local businesses (restaurants, cafes, salons, clinics, shops) that have no proper website',
+    good_fit: 'Busy, well-reviewed and active, but with no website, only social pages, or an old, broken or not-mobile site; menu only as photos; no clear contact or booking.',
+    bad_fit: 'Chains and franchises with central marketing, closed places, businesses that already have an excellent modern website, anything you cannot confirm is real.',
+    value: 'Customers find them online, see what they offer and contact or book them in one tap.',
+    gap_label: 'No website',
+    sample: 'website', // website | app | game | report | proposal | other
+    sample_name: 'demo website',
+    sample_notes: '',
+    target_label: 'Kind of business',
+  },
   offer: {
     pitch: 'A fast, mobile-first website made for this business before they pay anything. If they like it, we put it live on their own address and look after it every month (hosting, edits, updates).',
   },

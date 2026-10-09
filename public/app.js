@@ -7,7 +7,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const root = document.getElementById('root');
 import { t, setLang, LANGS } from './i18n.js';
 
-const S = { mode: 'awake', night: null, link: '', conns: null, setTab: 'general', config: null, agents: [], leads: [], approvals: [], runs: [], sites: [], activity: [], hunts: [], runner: null, stats: null, events: {}, lead: null, msgTab: 'pending', filter: 'all', q: '', market: null, ws: null };
+const S = { mode: 'awake', night: null, link: '', conns: null, setTab: 'business', config: null, agents: [], leads: [], approvals: [], runs: [], sites: [], activity: [], hunts: [], runner: null, stats: null, events: {}, lead: null, msgTab: 'pending', filter: 'all', q: '', market: null, ws: null };
 
 /* ------------------------------------------------------------------ icons */
 const IC = {
@@ -258,15 +258,16 @@ function viewHome() {
     <p>${todo.length ? `${todo.length} ${t('things need you. Everything else is handled.')}` : t('You are all caught up.')}</p></div></div>
 
   <div class="grid" style="gap:16px">
+    ${setupCard()}
     ${startCard()}
     ${nightCard()}
     <section class="card askcard"><div class="card-h"><h2>${t('Ask your team')}</h2><a class="small" href="#/tasks">${t('Tasks and schedules')} →</a></div><div class="card-b">${composer('askHome', true)}</div></section>
     <section class="card finder">
       <h2>${t('Find new clients')}</h2>
-      <p>${t('Choose what to look for. The team finds the businesses, checks them, and builds free demo websites for the best ones.')}</p>
+      <p>${!prof().configured || prof().sample === 'website' ? t('Choose what to look for. The team finds the businesses, checks them, and builds free demo websites for the best ones.') : `${t('Choose who to look for. The team finds them, checks them, and makes the best ones a free sample:')} ${esc(sampleName())}.`}</p>
       <div class="picks">
         <label class="pickbox"><small>${t('How many')}</small><select id="hCount">${[5, 10, 20, 30].map((n) => `<option ${n === 10 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label class="pickbox wide"><small>${t('Kind of business')}</small><select id="hNiche">${(m.niches || []).map((n) => `<option>${esc(n[0].toUpperCase() + n.slice(1))}</option>`).join('')}</select></label>
+        <label class="pickbox wide"><small>${esc(targetLabel())}</small><select id="hNiche">${(m.niches || []).map((n) => `<option>${esc(n[0].toUpperCase() + n.slice(1))}</option>`).join('')}</select></label>
         <label class="pickbox"><small>${t('City')}</small><select id="hCity">${(m.cities || []).map((c) => `<option>${esc(c)}</option>`).join('')}</select></label>
         <button class="btn primary lg" id="hGo">${ic('search')}${t('Start search')}</button>
       </div>
@@ -323,6 +324,8 @@ const wire = {};
 wire.home = () => {
   const todo = needsYou();
   wireComposer($('#app'));
+  $('[data-setup-go]')?.addEventListener('click', () => { S.setTab = 'business'; go('settings'); });
+  $('[data-setup-keep]')?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', '/api/setup/keep'), t('Saved.')));
   $('[data-hidestart]')?.addEventListener('click', () => { try { localStorage.setItem('hq_start_hidden', '1'); } catch { /* private window */ } S.lastHtml = null; render(); });
   $$('[data-step]').forEach((b) => (b.onclick = () => startSteps()[+b.dataset.step][2]()));
   $('[data-wake]')?.addEventListener('click', () => setMode('awake'));
@@ -559,7 +562,7 @@ function openAddBusiness() {
     <div class="grid" style="gap:12px">
       <label class="field"><span>${t('Business name')}</span><input id="aName" dir="auto"></label>
       <label class="field"><span>${t('Link (Instagram, Facebook, Maps or website)')}</span><input id="aLink" dir="ltr" placeholder="https://instagram.com/…"></label>
-      <div class="form-grid"><label class="field"><span>${t('Kind of business')}</span><select id="aNiche">${(m.niches || []).map((n) => `<option>${esc(n)}</option>`).join('')}</select></label>
+      <div class="form-grid"><label class="field"><span>${esc(targetLabel())}</span><select id="aNiche">${(m.niches || []).map((n) => `<option>${esc(n)}</option>`).join('')}</select></label>
         <label class="field"><span>${t('City')}</span><select id="aCity">${(m.cities || []).map((c) => `<option>${esc(c)}</option>`).join('')}</select></label></div>
       <label class="field"><span>${t('Phone or WhatsApp (optional)')}</span><input id="aPhone" dir="ltr"></label>
       <label class="field"><span>${t('What do you know about it? (optional)')}</span><textarea id="aNotes" dir="auto" rows="3"></textarea></label>
@@ -698,7 +701,7 @@ function schedForm() {
     <div class="seg" id="sKind"><button class="${f.kind === 'search' ? 'on' : ''}" data-kind="search">${ic('search')}${t('Find businesses')}</button><button class="${f.kind === 'ask' ? 'on' : ''}" data-kind="ask">${ic('msg')}${t('An instruction for the team')}</button></div>
     ${f.kind === 'search'
     ? `<div class="form-grid four">
-        <label class="field"><span>${t('Kind of business')}</span><select data-f="niche">${m.niches.map((n) => `<option ${n === f.niche ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+        <label class="field"><span>${esc(targetLabel())}</span><select data-f="niche">${m.niches.map((n) => `<option ${n === f.niche ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
         <label class="field"><span>${t('City')}</span><select data-f="city">${m.cities.map((c) => `<option ${c === f.city ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
         <label class="field"><span>${t('How many')}</span><select data-f="count">${[5, 10, 20, 30].map((n) => `<option ${n === +f.count ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="field"><span>${t('Build demos for the best')}</span><select data-f="build">${[0, 1, 2, 3, 5].map((n) => `<option ${n === +f.build ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>`
@@ -749,6 +752,7 @@ wire.tasks = () => {
 function startSteps() {
   let seenMap = false; try { seenMap = !!localStorage.getItem('hq_map_seen'); } catch { /* private window */ }
   return [
+    ['Tell the AI what you sell', !!prof().configured, () => { S.setTab = 'business'; go('settings'); }],
     ['Find your first businesses', S.leads.length > 0, () => $('#hGo')?.scrollIntoView({ behavior: 'smooth', block: 'center' })],
     ['Ask your team for something', S.runs.some((r) => r.agent === 'lead'), () => go('tasks')],
     ['Approve a demo', S.sites.some((x) => x.public_url), () => go('demos')],
@@ -764,6 +768,65 @@ function startCard() {
   return `<section class="card start"><div class="card-h"><h2>${t('Getting started')}</h2><span class="sub">${done} / ${steps.length} ${t('done')}</span><button class="btn sm ghost" data-hidestart>${t('Hide')}</button></div>
     <div class="start-bar"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
     <div class="start-steps">${steps.map(([l, ok], i) => `<button class="step ${ok ? 'ok' : ''}" data-step="${i}"><span class="tick">${ok ? ic('check') : i + 1}</span>${t(l)}</button>`).join('')}</div></section>`;
+}
+
+/* ---------------------------------------------------- YOUR BUSINESS (setup) */
+// A short chat with the setup assistant tailors the whole team to what this company sells.
+const prof = () => S.config.profile || {};
+const targetLabel = () => (prof().configured && local('target_label')) || t('Kind of business');
+const local = (k) => (S.lang && S.lang !== 'en' && prof()[`${k}_local`]) || prof()[k] || '';
+const sampleName = () => local('sample_name') || t('demo website');
+function setupHello() { return { role: 'ai', text: t('Hi! I will set Jump HQ up for your business. What do you sell, and who are your clients? For example: "We build mobile apps for gyms in Erbil" or "We make sales dashboards for supermarkets".') }; }
+const nowRow = (label, val) => (val ? `<div class="biz-row"><span>${t(label)}</span><b dir="auto">${esc(val)}</b></div>` : '');
+function setBusiness() {
+  const p = prof(), m = market(S.config.market_id);
+  const chat = (S.setupChat ||= [setupHello()]);
+  const pr = S.setupProposal;
+  const price = m.price_note || `${money(m.build_price, m.id)}${m.monthly_price ? ` + ${money(m.monthly_price, m.id)} / ${t('month')}` : ''}`;
+  return `<section class="card"><div class="card-h"><h2>${t('What the team works for')}</h2>${p.configured ? `<span class="badge good">${t('Set up')}</span>` : `<span class="badge warn">${t('Default setup')}</span>`}</div>
+    <div class="card-b"><div class="biz-now">
+      ${nowRow('What you sell', p.what)}${nowRow('Your clients', p.audience)}${nowRow('Free sample for each client', sampleName())}
+      ${nowRow('Where', `${m.label} · ${m.cities.slice(0, 5).join(', ')}`)}${nowRow('Messages', `${m.channel === 'whatsapp' ? 'WhatsApp' : t('Email')} · ${m.language}`)}${nowRow('Price', price)}
+    </div><p class="muted small" style="margin:10px 0 0">${t('To change any of this, just tell the assistant below. It sets up every agent, the search and the messages.')}</p></div></section>
+  <section class="card"><div class="card-h"><h2>${t('Setup assistant')}</h2><span class="sub">${t('About 2 minutes')}</span></div>
+    <div class="card-b">
+      <div class="chatlog" id="chatlog">${chat.map((x) => `<div class="cb ${x.role}"><div dir="auto">${fmt(x.text)}</div></div>`).join('')}${S.setupBusy ? `<div class="cb ai"><i class="typing"><b></b><b></b><b></b></i></div>` : ''}</div>
+      ${pr ? `<div class="proposal"><h3>${t('Your new setup')}</h3>
+        ${nowRow('What you sell', pr.profile?.what)}${nowRow('Your clients', pr.profile?.audience)}${nowRow('Free sample for each client', pr.profile?.sample_name_local || pr.profile?.sample_name)}
+        ${nowRow('Where', `${pr.market?.label || ''} · ${(pr.market?.cities || []).slice(0, 6).join(', ')}`)}${nowRow('Who the team looks for', (pr.market?.niches || []).slice(0, 8).join(', '))}
+        ${nowRow('Messages', `${pr.market?.channel === 'email' ? t('Email') : 'WhatsApp'} · ${pr.market?.language || ''}`)}${nowRow('Price', pr.market?.price_note)}
+        <div class="row-actions" style="justify-content:flex-start"><button class="btn primary" id="setupApply">${ic('check')}${t('Use this setup')}</button><button class="btn ghost" id="setupMore">${t('Change something')}</button></div></div>` : ''}
+      <div class="ask-in"><textarea id="setupIn" rows="1" dir="auto" placeholder="${t('Type your answer…')}">${esc(S.setupDraft || '')}</textarea><button class="btn primary" id="setupSend" ${S.setupBusy ? 'disabled' : ''}>${ic('send')}${t('Send')}</button></div>
+      <div class="row-actions" style="justify-content:space-between;margin-top:10px"><button class="btn sm ghost" id="setupReset">${t('Start over')}</button>${p.configured ? '' : `<button class="btn sm outline" id="setupKeep">${t('The current setup is right')}</button>`}</div>
+    </div></section>`;
+}
+function wireBusiness() {
+  const log = $('#chatlog'); if (log) log.scrollTop = log.scrollHeight;
+  const ta = $('#setupIn');
+  if (!ta) return;
+  ta.oninput = () => { S.setupDraft = ta.value; ta.style.height = 'auto'; ta.style.height = `${Math.min(200, ta.scrollHeight)}px`; };
+  ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#setupSend').click(); } };
+  $('#setupSend').onclick = async () => {
+    const text = ta.value.trim();
+    if (!text || S.setupBusy) return;
+    S.setupChat.push({ role: 'you', text }); S.setupDraft = ''; S.setupBusy = true; S.lastHtml = null; render();
+    try {
+      const r = await req('POST', '/api/setup/chat', { messages: S.setupChat });
+      if (r.reply) S.setupChat.push({ role: 'ai', text: r.reply });
+      if (r.proposal) S.setupProposal = r.proposal;
+    } catch (e) { S.setupChat.push({ role: 'ai', text: `${t('Sorry, that did not work')}: ${e.message}` }); }
+    S.setupBusy = false; S.lastHtml = null; render(); $('#setupIn')?.focus();
+  };
+  $('#setupMore')?.addEventListener('click', () => { S.setupProposal = null; S.lastHtml = null; render(); $('#setupIn')?.focus(); });
+  $('#setupApply')?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', '/api/setup/apply', S.setupProposal), t('Done. Every agent now works for your business.'), () => { S.setupProposal = null; S.setupChat = [setupHello()]; S.market = S.config.market_id; }));
+  $('#setupKeep')?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', '/api/setup/keep'), t('Saved.')));
+  $('#setupReset').onclick = () => { S.setupChat = [setupHello()]; S.setupProposal = null; S.lastHtml = null; render(); };
+}
+function setupCard() {
+  if (prof().configured) return '';
+  return `<section class="card setup-cta"><div class="setup-ic">${ic('spark')}</div><div class="grow"><h2>${t('Make Jump HQ yours')}</h2>
+    <p>${t('Tell the setup assistant what you sell and who your clients are: websites, apps, games, data, design or anything else. It sets up the whole team for you in about 2 minutes.')}</p></div>
+    <div class="row-actions"><button class="btn primary" data-setup-go>${ic('spark')}${t('Set it up with the AI')}</button><button class="btn ghost" data-setup-keep>${t('The current setup is right')}</button></div></section>`;
 }
 
 /* ---------------------------------------------------------------- LIVE MAP */
@@ -787,10 +850,10 @@ wire.map = async () => {
 };
 
 /* --------------------------------------------------------------- SETTINGS */
-const SET_TABS = [['general', 'General', 'gear'], ['sleep', 'Sleep mode', 'moon'], ['connections', 'Connections', 'plug'], ['phone', 'Phone app', 'phone'], ['market', 'Market and prices', 'globe'], ['security', 'Security', 'shield']];
+const SET_TABS = [['business', 'Your business', 'spark'], ['general', 'General', 'gear'], ['sleep', 'Sleep mode', 'moon'], ['connections', 'Connections', 'plug'], ['phone', 'Phone app', 'phone'], ['market', 'Market and prices', 'globe'], ['security', 'Security', 'shield']];
 function viewSettings() {
   const tab = SET_TABS.find((x) => x[0] === S.setTab) || SET_TABS[0];
-  const body = { general: setGeneral, sleep: setSleep, connections: setConnections, phone: setPhone, market: setMarket, security: setSecurity }[tab[0]]();
+  const body = { business: setBusiness, general: setGeneral, sleep: setSleep, connections: setConnections, phone: setPhone, market: setMarket, security: setSecurity }[tab[0]]();
   return `<div class="page-head"><div><h1>${t('Settings')}</h1><p>${t('Set it once. The team uses these for every search and every message.')}</p></div></div>
   <div class="settings"><nav class="set-nav">${SET_TABS.map(([k, n, i]) => `<button data-st="${k}" class="${k === tab[0] ? 'on' : ''}">${ic(i)}${t(n)}</button>`).join('')}</nav>
   <div class="grid set-body">${body}</div></div>`;
@@ -922,6 +985,7 @@ async function saveSettings(btn) {
   else if (S.setTab === 'connections') loadConns();
 }
 wire.settings = () => {
+  wireBusiness();
   $$('[data-st]').forEach((b) => (b.onclick = () => { S.setTab = b.dataset.st; S.lastHtml = null; render(); }));
   $$('[data-st-go]').forEach((b) => (b.onclick = (e) => { e.preventDefault(); S.setTab = b.dataset.stGo; S.lastHtml = null; render(); }));
   $$('[data-save]').forEach((b) => (b.onclick = () => saveSettings(b)));

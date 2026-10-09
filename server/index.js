@@ -13,7 +13,7 @@ import { Config } from './config.js';
 import { Runner } from './runner.js';
 import { Publisher, githubToken } from './publish.js';
 import { listAgents, AGENTS } from './agents.js';
-import { Judge } from './judge.js';
+import { Judge, askClaude, langName } from './judge.js';
 import { words } from './words.js';
 import { Telegram, Tunnel, Beacon, lanUrl, claudeStatus, githubStatus } from './connect.js';
 import QRCode from 'qrcode';
@@ -344,6 +344,96 @@ setInterval(() => {
   store.save();
   try { startHunt({ ...s, market_id: s.market_id || config.data.market_id }); } catch (e) { store.log(`Night plan: ${e.message}`, { kind: 'error' }); }
 }, 30e3);
+// ---- Setup assistant: a short chat that tailors the whole team to what this company sells ----
+const SETUP_KEYS = `{
+  "company": { "name": "", "website": "", "sender_name": "" },
+  "profile": {
+    "what": "what they sell, one line",
+    "kind": "one word: websites | apps | games | data | design | marketing | software | services | other",
+    "audience": "who their clients are, one line",
+    "good_fit": "what a client worth contacting looks like (signs a searcher can check in public)",
+    "bad_fit": "who to skip",
+    "value": "what the client gains, one line",
+    "gap_label": "2-3 words shown on the map for a client who still lacks it, e.g. No website, No app, No dashboard",
+    "sample": "website | app | game | report | proposal | other (the free sample made for each client, built as one web page)",
+    "sample_name": "short name of that sample, e.g. demo website, app prototype, mini game, sample report, proposal",
+    "sample_notes": "anything special about the sample, or empty",
+    "target_label": "what the client kinds are called, e.g. Kind of business, Kind of company, Industry",
+    "pitch": "two plain sentences: the offer as the team should explain it",
+    "gap_label_local": "gap_label in the owner's language",
+    "sample_name_local": "sample_name in the owner's language",
+    "target_label_local": "target_label in the owner's language"
+  },
+  "market": {
+    "label": "region name, e.g. Kurdistan Region", "country": "", "currency": "e.g. IQD, USD", "language": "the clients' main language",
+    "site_languages": ["languages the sample should be in"], "channel": "whatsapp | email", "phone_prefix": "country code digits",
+    "build_price": 0, "monthly_price": 0, "price_note": "the price in words, e.g. 1,500 USD per app + 100 USD/month support",
+    "cities": ["up to 8 cities to search"], "niches": ["8-12 kinds of clients to search for, plural, e.g. gyms, private schools"],
+    "notes": "one or two sentences of local reality the searchers should know (how these clients show up online there)"
+  }
+}`;
+function setupPrompt(history) {
+  const c = config.data, m = config.market(), p = c.profile;
+  return `You are the setup assistant inside Jump HQ. Reply in ${langName(c.ui_language)}, warmly and briefly (max 70 words per reply, no lists of questions).
+
+What Jump HQ is: an AI sales team that runs on the owner's computer. It searches for possible clients (businesses, companies or organisations) in chosen cities, checks they are real, scores them, makes each good one a FREE SAMPLE of what the owner sells, writes the first message in the client's language, and the owner approves before anything goes out. The sample is always built as one web page: a demo website, a clickable app prototype, a small playable game, a data report, or a tailored proposal.
+
+Your job: find out in a short chat what this owner sells, who their clients are, where (country, cities, the clients' language), how they reach clients (WhatsApp or email), their prices, and which free sample would impress a client most. Ask ONE question at a time, and suggest a sensible answer when you can, so they can just say yes. Usually 3 to 5 questions are enough. Don't ask what you can infer.
+
+The current setup (what the team uses today): ${JSON.stringify({ company: c.company.name, what: p.what, audience: p.audience, sample: p.sample_name, region: m.label, cities: m.cities.slice(0, 4), language: m.language, channel: m.channel, price: m.price_note || `${m.build_price} ${m.currency}` })}
+
+The conversation so far:
+${history}
+
+When you know enough, or the owner says to finish, reply with one short paragraph summarising the setup, then the full setup as JSON between <setup> and </setup>, with exactly these keys (fill every field, in English except the *_local fields):
+${SETUP_KEYS}
+Otherwise reply with your next single question.`;
+}
+api.post('/setup/chat', async (req, res) => {
+  const msgs = (Array.isArray(req.body?.messages) ? req.body.messages : []).slice(-16)
+    .map((x) => `${x.role === 'you' ? 'Owner' : 'Assistant'}: ${String(x.text || '').slice(0, 1500)}`).join('\n\n');
+  if (!msgs) return res.status(400).json({ error: 'Write something first.' });
+  try {
+    const { text } = await askClaude(setupPrompt(msgs), config.data, runner.workDir);
+    let proposal = null;
+    const m = text.match(/<setup>([\s\S]*?)<\/setup>/);
+    if (m) { try { proposal = JSON.parse(m[1].replace(/```(json)?/g, '').trim()); } catch { proposal = null; } }
+    res.json({ reply: text.replace(/<setup>[\s\S]*?<\/setup>/, '').replace(/```(json)?[\s\S]*?```/g, '').trim(), proposal });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+const str = (v, n = 400) => String(v ?? '').trim().slice(0, n);
+const strList = (v, n) => (Array.isArray(v) ? v : String(v || '').split(',')).map((x) => str(x, 80)).filter(Boolean).slice(0, n);
+api.post('/setup/apply', (req, res) => {
+  const b = req.body || {}, p = b.profile || {}, m = b.market || {}, c = b.company || {};
+  if (!str(p.what)) return res.status(400).json({ error: 'Tell the assistant what you sell first.' });
+  // Same region as before (same name or country)? Keep its id, so the businesses already found stay with it.
+  const norm = (x) => String(x || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z]/g, '');
+  const same = Object.values(config.data.markets).find((x) => (norm(x.label) && norm(x.label) === norm(m.label)) || (norm(x.country) && norm(m.country) && (norm(x.country).startsWith(norm(m.country)) || norm(m.country).startsWith(norm(x.country)))));
+  const id = same?.id || (str(m.label, 40).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'main').slice(0, 30);
+  const old = config.data.markets[id] || config.market();
+  const cities = strList(m.cities, 12), niches = strList(m.niches, 14), langs = strList(m.site_languages, 3);
+  const market = {
+    id, label: str(m.label, 60) || old.label, country: str(m.country, 60) || old.country, currency: str(m.currency, 8).toUpperCase() || old.currency,
+    language: str(m.language, 40) || old.language, site_languages: langs.length ? langs : old.site_languages, channel: m.channel === 'email' ? 'email' : 'whatsapp',
+    phone_prefix: str(m.phone_prefix, 6).replace(/\D/g, '') || old.phone_prefix || '', build_price: Math.max(0, Number(m.build_price) || 0), monthly_price: Math.max(0, Number(m.monthly_price) || 0),
+    price_note: str(m.price_note, 160), cities: cities.length ? cities : old.cities, niches: niches.length ? niches : old.niches, notes: str(m.notes, 600),
+  };
+  const SAMPLES = ['website', 'app', 'game', 'report', 'proposal', 'other'];
+  const profile = {
+    configured: true, what: str(p.what, 200), kind: str(p.kind, 30) || 'other', audience: str(p.audience, 300), good_fit: str(p.good_fit, 600), bad_fit: str(p.bad_fit, 400),
+    value: str(p.value, 300), gap_label: str(p.gap_label, 40) || 'Not a client yet', sample: SAMPLES.includes(p.sample) ? p.sample : 'other', sample_name: str(p.sample_name, 60) || 'free sample',
+    sample_notes: str(p.sample_notes, 400), target_label: str(p.target_label, 40) || 'Kind of client',
+    gap_label_local: str(p.gap_label_local, 40), sample_name_local: str(p.sample_name_local, 60), target_label_local: str(p.target_label_local, 40),
+  };
+  const company = Object.fromEntries(Object.entries({ name: str(c.name, 60), website: str(c.website, 120), sender_name: str(c.sender_name, 60) }).filter(([, v]) => v));
+  config.update({ company, profile, offer: { pitch: str(p.pitch, 500) || `${profile.what}. ${profile.value}` }, markets: { [id]: market }, market_id: id });
+  store.log(say('setup_done', { w: profile.what }), { kind: 'done' });
+  broadcast({ type: 'change', kind: 'settings' });
+  res.json(config.public());
+});
+// "It's already right": keep the current setup and stop asking.
+api.post('/setup/keep', (req, res) => { config.update({ profile: { configured: true } }); res.json(config.public()); });
+
 // ---- Ask the team + schedules ----------------------------------------------
 // The owner types what they want in plain words; the Team lead turns it into work.
 api.post('/ask', (req, res) => {

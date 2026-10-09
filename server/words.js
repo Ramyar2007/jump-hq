@@ -16,6 +16,7 @@ const W = {
   auto_sent: ['Sent by itself to {to} after the Judge approved it.', 'دوای پەسەندکردنی دادوەر بە خۆکاری نێردرا بۆ {to}.', 'أُرسلت تلقائياً إلى {to} بعد موافقة الحَكَم.'],
   auto_fail: ['Automatic sending failed ({e}); the message is ready for you to send.', 'ناردنی خۆکار سەرکەوتوو نەبوو ({e})؛ نامەکە ئامادەیە بۆ ئەوەی خۆت بینێریت.', 'فشل الإرسال التلقائي ({e})؛ الرسالة جاهزة لترسلها بنفسك.'],
   auto_ready: ['Message to {b} approved by the Judge: one tap to send it in the morning.', 'نامەی {b} دادوەر پەسەندی کرد: بەیانی بە یەک کرتە بینێرە.', 'وافق الحَكَم على الرسالة إلى {b}: نقرة واحدة لإرسالها صباحاً.'],
+  setup_done: ['The team is now set up for: {w}', 'تیمەکە ئێستا ڕێکخرا بۆ: {w}', 'أصبح الفريق مُعدّاً لـ: {w}'],
   schedule_ran: ['Scheduled task started: {w}', 'ئەرکی خشتەکراو دەستی پێکرد: {w}', 'بدأت مهمة مجدولة: {w}'],
   new_search: ['New search: {n} {niche} in {city}', 'گەڕانی نوێ: {n} {niche} لە {city}', 'بحث جديد: {n} {niche} في {city}'],
   sent: ['Message sent to {to}', 'نامە نێردرا بۆ {to}', 'أُرسلت الرسالة إلى {to}'],

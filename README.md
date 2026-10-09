@@ -18,6 +18,9 @@ SmartSuli AI Hackathon 2026, open track. Pitch: [PITCH.md](PITCH.md).
 
 ## Using it (for a new team)
 
+**Works for any business, not only websites.** On first start, Home shows **Make Jump HQ yours**: a short chat with the **setup assistant** (Settings → Your business). Tell it what you sell and who your clients are (websites, mobile apps, games, data dashboards, design, marketing…). It sets up every agent: who to search for and where, what a good client looks like, the free sample made for each client (a demo website, a clickable app prototype, a small playable game, a data report or a tailored proposal), the message language and channel, and the price.
+
+
 The first page shows a **Getting started** checklist. Everything else is three places:
 
 | Where | What you do there |

@@ -91,7 +91,7 @@ Check: 1) every claim about the business is backed by the facts above (no invent
   }
   return `${common}
 
-ITEM: a free concept website ("demo") built for a business, about to be put online at a public address and sent to them.
+ITEM: a free concept ${cfg.profile?.sample_name || 'website'} ("demo") built for a client, about to be put online at a public address and sent to them.
 Business facts we know:
 ${JSON.stringify(ctx.facts, null, 2)}
 
@@ -101,6 +101,28 @@ ${(ctx.text || '').slice(0, 7000)}
 """
 
 Check: 1) it clearly says it is a concept and not the official website; 2) no invented reviews, ratings, awards, prices or menu items that are not in the facts; 3) the name, contact and location match the facts; 4) it reads well in its languages; 5) nothing offensive or embarrassing. For a demo, never use "revise" (you cannot edit the page): use "approve" or "hold".`;
+}
+
+// One plain answer from Claude, no tools (used by the setup assistant).
+export function askClaude(text, cfg, cwd, timeout = 150000) {
+  return new Promise((resolve, reject) => {
+    const args = ['-p', text, '--output-format', 'json', '--model', cfg.limits.model || 'sonnet', '--max-turns', '1',
+      '--setting-sources', 'project,local', '--strict-mcp-config', '--tools', '', '--permission-mode', 'dontAsk', '--no-session-persistence'];
+    const child = spawn(CLAUDE, args, { cwd, windowsHide: true });
+    let out = '', err = '';
+    const timer = setTimeout(() => { child.kill(); reject(new Error('The assistant took too long. Try again.')); }, timeout);
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { err += d; });
+    child.on('error', (e) => { clearTimeout(timer); reject(new Error(`Could not start Claude Code: ${e.message}`)); });
+    child.on('close', () => {
+      clearTimeout(timer);
+      try {
+        const env = JSON.parse(out);
+        if (env.is_error) return reject(new Error(String(env.result || 'The assistant failed').slice(0, 300)));
+        resolve({ text: String(env.result || ''), cost: env.total_cost_usd || 0 });
+      } catch { reject(new Error(`The assistant's answer was unreadable: ${(err || out).slice(0, 200)}`)); }
+    });
+  });
 }
 
 function runClaude(text, cfg, cwd) {

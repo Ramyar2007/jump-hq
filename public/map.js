@@ -1172,7 +1172,11 @@ export function mount(stage, api) {
 
   /* ---------------- live data from the app */
   let st = api.getState(), ago = 0;
-  const statusText = (k) => t(STATUS[k]?.label || '');
+  const statusText = (k) => {
+    const pf = st.config?.profile;
+    if (k === 'none' && pf?.configured) return (st.config.ui_language !== 'en' && pf.gap_label_local) || pf.gap_label || t('No website');
+    return t(STATUS[k]?.label || '');
+  };
   function eventLine(run) {
     api.ensureEvents(run.id);
     const ev = (st.events[run.id] || []).slice().reverse();
