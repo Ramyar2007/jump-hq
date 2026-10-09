@@ -96,7 +96,7 @@ export default function Home() {
 
       <Card>
         <H size={19}>{t('Find new clients')}</H>
-        <T color={C.muted} size={14}>{t('Choose what to look for. The team finds the businesses, checks them, and builds free demo websites for the best ones.')}</T>
+        <T color={C.muted} size={14}>{t('Choose who to look for. The team finds them, checks them, and makes the best ones a free sample of your work.')}</T>
         <T w={700} size={13} color={C.faint}>{t('Kind of business')}</T>
         <Chips items={m.niches} value={niche || m.niches[0]} onChange={setNiche} />
         <T w={700} size={13} color={C.faint}>{t('City')}</T>

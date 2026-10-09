@@ -27,7 +27,7 @@ A short chat with the **setup assistant** (Settings → Your business) tells Jum
 | **Scout** | Looks for buying signals in three languages: people asking for your service, brands already paying for ads, shops whose pages went quiet, hiring posts |
 | **Investigator** | Proves each business is real: followers, recent posts, public contact. Every fact is marked *verified* or *assumed* |
 | **Analyst** (Opportunity + Strategist + Reviewer) | Scores need, budget and reach. Only the best go on |
-| **Builder** | Makes a free sample of your work for that business: a demo website (Kurdish RTL + English), app prototype, small game, ad concept, data report or proposal |
+| **Builder** | Makes a free sample of your work for that business, whatever you sell: an ad concept (script + storyboard), a store page, a data report, a clickable app prototype, a small game, a website or a proposal (Kurdish RTL + English) |
 | **Writer** | A short, honest WhatsApp message (or email) in natural Sorani with one link: the sample |
 | **Closer** | When they reply, drafts the answer until they say yes |
 

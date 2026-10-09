@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "scheme": "jumphq",
     "backgroundColor": "#0f1b33",
-    "description": "Jump HQ: your AI team that finds local businesses, builds them free demo websites and writes the first message. Awake or Sleep mode with an AI Judge. English, Kurdish, Arabic.",
+    "description": "Jump HQ: your AI team that finds clients for what you sell, makes each a free sample, writes the first message and runs your social media. Awake or Sleep mode with an AI Judge. English, Kurdish, Arabic.",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.jumpagency.hq",

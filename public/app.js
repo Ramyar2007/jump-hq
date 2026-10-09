@@ -266,7 +266,7 @@ function viewHome() {
     <section class="card askcard"><div class="card-h"><h2>${t('Ask your team')}</h2><a class="small" href="#/tasks">${t('Tasks and schedules')} →</a></div><div class="card-b">${composer('askHome', true)}</div></section>
     <section class="card finder">
       <h2>${t('Find new clients')}</h2>
-      <p>${!prof().configured || prof().sample === 'website' ? t('Choose what to look for. The team finds the businesses, checks them, and builds free demo websites for the best ones.') : `${t('Choose who to look for. The team finds them, checks them, and makes the best ones a free sample:')} ${esc(sampleName())}.`}</p>
+      <p>${prof().configured && prof().sample === 'website' ? t('Choose who to look for. The team finds them, checks them, and builds free demo websites for the best ones.') : !prof().configured ? t('Choose who to look for. The team finds them, checks them, and makes the best ones a free sample of your work.') : `${t('Choose who to look for. The team finds them, checks them, and makes the best ones a free sample:')} ${esc(sampleName())}.`}</p>
       <div class="picks">
         <label class="pickbox"><small>${t('How many')}</small><select id="hCount">${[5, 10, 20, 30].map((n) => `<option ${n === 10 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="pickbox wide"><small>${esc(targetLabel())}</small><select id="hNiche">${(m.niches || []).map((n) => `<option>${esc(n[0].toUpperCase() + n.slice(1))}</option>`).join('')}</select></label>
@@ -627,7 +627,7 @@ function openAddBusiness() {
   p.className = 'preview';
   p.style.justifyContent = 'center';
   p.innerHTML = `<div class="card modal-card"><h2>${t('Add a business you know')}</h2>
-    <p class="muted" style="margin:4px 0 16px">${t('Paste its Instagram, Facebook, Google Maps or website link. The Builder makes its demo website in a minute or two.')}</p>
+    <p class="muted" style="margin:4px 0 16px">${t('Paste its Instagram, Facebook, Google Maps or website link. The Builder makes its free sample in a minute or two.')}</p>
     <div class="grid" style="gap:12px">
       <label class="field"><span>${t('Business name')}</span><input id="aName" dir="auto"></label>
       <label class="field"><span>${t('Link (Instagram, Facebook, Maps or website)')}</span><input id="aLink" dir="ltr" placeholder="https://instagram.com/…"></label>

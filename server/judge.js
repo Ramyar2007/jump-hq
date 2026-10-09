@@ -28,7 +28,7 @@ const RULES = {
   empty: ['The message is empty.', 'نامەکە بەتاڵە.', 'الرسالة فارغة.'],
   email: ['The "to" address is not a real email address.', 'ناونیشانی وەرگر ئیمەیڵێکی دروست نییە.', 'عنوان المستلم ليس بريداً إلكترونياً صحيحاً.'],
   wa: ['There is no valid WhatsApp number.', 'ژمارەیەکی دروستی واتسئاپ نییە.', 'لا يوجد رقم واتساب صحيح.'],
-  nolink: ['The message does not link to the demo website.', 'نامەکە بەستەری ماڵپەڕی نموونەی تێدا نییە.', 'الرسالة لا تحتوي على رابط الموقع التجريبي.'],
+  nolink: ['The message does not link to the free sample.', 'نامەکە بەستەری نموونە بێبەرامبەرەکەی تێدا نییە.', 'الرسالة لا تحتوي على رابط العيّنة المجانية.'],
   links: ['Too many links: it would look like spam.', 'بەستەری زۆری تێدایە: وەک سپام دەردەکەوێت.', 'روابط كثيرة جداً: ستبدو كرسائل مزعجة.'],
   placeholder: ['The message still has placeholder text in it.', 'نامەکە هێشتا دەقی کاتی تێدایە.', 'الرسالة ما زالت تحتوي على نص مؤقت.'],
   page: ['The page is almost empty.', 'پەڕەکە نزیکەی بەتاڵە.', 'الصفحة شبه فارغة.'],

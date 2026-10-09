@@ -8,7 +8,7 @@ export const DEFAULTS = {
     website: 'https://jumpagency.org',
     sender_name: 'Ramyar',
     sender_email: 'ramyar@jumpagency.org',
-    signature: 'Ramyar\nJump, web design studio\njumpagency.org',
+    signature: 'Ramyar\nJump\njumpagency.org',
   },
   // Markets: where we look for clients. Each has its own language, money, prices and how we reach people.
   market_id: 'krd',

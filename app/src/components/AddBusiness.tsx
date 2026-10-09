@@ -30,7 +30,7 @@ export function AddBusiness() {
   return (
     <Card>
       <H>{t('Add a business you know')}</H>
-      <T size={13.5} color={C.muted}>{t('Paste its Instagram, Facebook, Google Maps or website link. The Builder makes its demo website in a minute or two.')}</T>
+      <T size={13.5} color={C.muted}>{t('Paste its Instagram, Facebook, Google Maps or website link. The Builder makes its free sample in a minute or two.')}</T>
       <Field label={t('Business name')} value={name} onChangeText={setName} />
       <Field label={t('Link (Instagram, Facebook, Maps or website)')} value={link} onChangeText={setLink} autoCapitalize="none" keyboardType="url" placeholder="https://instagram.com/…" style={{ textAlign: 'left' } as any} />
       <Field label={t('Phone or WhatsApp (optional)')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={{ textAlign: 'left' } as any} />

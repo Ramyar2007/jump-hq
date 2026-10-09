@@ -134,7 +134,7 @@ const ORDER = ['lead', 'scout', 'investigator', 'opportunity', 'strategist', 're
 const REHEARSE = {
   lead: 'Planning the work: find 10 cafés in Sulaymaniyah',
   scout: 'Searching: beauty salons in Sulaymaniyah', investigator: 'Checking Instagram and Google Maps', opportunity: 'Scoring 5 businesses',
-  strategist: 'Planning a Kurdish and English website', reviewer: 'Review: approved', builder: 'Building the demo website',
+  strategist: 'Planning the free sample', reviewer: 'Review: approved', builder: 'Building the free sample',
   writer: 'Writing the WhatsApp message in Sorani', closer: 'Message ready for you',
 };
 const TABLE_ROLES = new Set(['opportunity', 'strategist', 'reviewer']);
