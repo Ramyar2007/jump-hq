@@ -1,18 +1,22 @@
 # Jump HQ: SmartSuli AI Hackathon pitch
 
-**One line:** An AI sales team that finds Sulaimani businesses with no proper website, builds each one a free demo site in Kurdish and English, and writes the WhatsApp message. You approve from your phone. At night, an AI Judge approves for you.
+**One line:** An AI sales team for any service business in Sulaimani (web studios, AI video ad makers, marketers, data analysts, app studios). Tell it what you sell. It finds the clients who need it, makes each one a free sample of your work, and writes the WhatsApp message in Kurdish. You approve from your phone. At night, an AI Judge approves for you.
 
 ---
 
 ## The problem (one, specific, Sulaimani)
 
-Most restaurants, salons, clinics and shops in Sulaimani live only on Instagram and Facebook. Their menu is photos in posts. There are no opening hours, no booking, and nothing comes up when someone searches.
+Sulaimani is full of skilled people who sell a service: web developers, AI video ad makers, marketers, designers, data analysts, small agencies. Their problem is not skill. It is finding clients.
 
-The people who could fix this, Sulaimani's young web developers and small studios, can't reach them at scale. Finding businesses by hand, checking them, designing a sample and writing a message in good Sorani takes hours per business. Upwork, Fiverr and Stripe payouts don't work from Iraq, so local clients are the market. Most of these developers give up after a few tries.
+Every client is found the slow way. They search by hand, check the business is real, make a sample of their work and write a good message in Sorani. That takes hours per client. Upwork, Fiverr and Stripe payouts don't work from Iraq, so local clients are the market. Most of them give up after a few tries.
 
-**Real numbers, from our own agents today (9 Oct):** they searched Sulaimani restaurants and beauty salons. Only 9 could be found online at all, and **0 of the 9 had a website**. The top salon has 28,400 Instagram followers and posts almost daily, yet its bio links only to a map pin.
+The clients are right there. Most restaurants, salons, clinics and shops live only on Instagram: no website, no ads beyond posts, no booking, no numbers.
 
-**Problem in one sentence:** Sulaimani businesses stay offline because selling them a website one by one is too slow for the developers who could build it.
+**Real numbers, from our own agents today (9 Oct), for one trade (websites):** they searched Sulaimani restaurants and beauty salons. Only 9 could be found online at all, and **0 of the 9 had a website**. The top salon has 28,400 Instagram followers and posts almost daily, yet its bio links only to a map pin.
+
+**Problem in one sentence:** Sulaimani's freelancers and small agencies stay without work, and local businesses stay without their help, because finding and pitching clients one by one is too slow.
+
+**How it adapts:** a 2-minute setup chat (Settings → Your business) tells every agent what you sell. The search, the scoring, the free sample, the message and the prices all change with it. The free sample is a demo website, an ad concept (script and storyboard), a campaign proposal, a sample data report or a clickable app prototype.
 
 ## The solution
 
@@ -81,20 +85,21 @@ Payment: FIB, card or bank transfer (works from Iraq). The plan limit is enforce
 
 ## 3-minute script (Round 1)
 
-**0:00–0:20 Problem.** "Walk down Salim Street: restaurants and salons live on Instagram, not on the web. This morning our agents checked nine of them in Sulaimani. Zero had a website, even a salon with 28,000 followers. And our young developers can't sell to them one by one fast enough."
+**0:00–0:20 Problem.** "Sulaimani is full of skilled people: web developers, AI video ad makers, marketers, data analysts. Their problem isn't skill, it's finding clients. Every client takes hours by hand, and Upwork and Fiverr don't work from Iraq. Meanwhile the clients are right there: this morning our agents checked nine Sulaimani businesses. Zero had a website, even a salon with 28,000 followers."
 
-**0:20–0:45 Solution.** "Jump HQ is an AI sales team. I choose *restaurants, Sulaymaniyah*. Eight agents find them, check they're real, score them, build each one a free website in Kurdish, and write the WhatsApp message in Sorani."
+**0:20–0:45 Solution.** "Jump HQ is an AI sales team for any service business. You tell it what you sell in a 2-minute chat. Eight agents find the clients who need it, check they're real, score them, make each one a free sample of your work (a demo site, an ad concept, a data report), and write the message in Sorani."
 
 **0:45–1:40 Live demo (phone in hand).**
-- Home: show the real Sulaimani results from today's search (found → checked → worth it → demos).
-- Open a demo: a Kurdish website made for a real restaurant.
+- Setup chat: type "I make AI video ads" and show the team adapt (sample becomes an ad concept).
+- Home: show the real Sulaimani results from today's search (found → checked → worth it → samples).
+- Open a sample: a Kurdish website made for a real salon.
 - Messages: the Judge's verdict ("88/100, safe"). Tap Approve, and WhatsApp opens with the message ready.
 
 **1:40–2:10 Sleep mode.** "At night I press Sleep. The team keeps working. Before anything goes out, an independent AI Judge checks it against the facts. In testing it caught an invented compliment and a wrong phone number. In the morning I get a report."
 
-**2:10–2:45 Money.** "It's online: sign up, and your team is working in seconds. No install. Starter is 15 dollars a month. One website sold pays for more than a year. The AI runs on our key, the cheap model does most of the work, and plan limits keep every customer profitable. We also sell websites ourselves: 350,000 dinars each plus monthly care."
+**2:10–2:45 Money.** "It's online: sign up, and your team is working in seconds. No install. Starter is 15 dollars a month. One client won pays for more than a year, whether you sell websites, video ads or data reports. The AI runs on our key, the cheap model does most of the work, and plan limits keep every customer profitable. We also use it ourselves: our own studio wins projects with it."
 
-**2:45–3:00 Close.** "Built at this hackathon: the Judge, Sleep mode, the phone app, Kurdish and Arabic. Jump HQ gets Sulaimani's businesses online, and pays the developers who do it."
+**2:45–3:00 Close.** "Built at this hackathon: the Judge, Sleep mode, the phone app, setup for any business, Kurdish and Arabic. Jump HQ gives every Sulaimani freelancer and agency an AI sales team."
 
 ## Likely judge questions
 
