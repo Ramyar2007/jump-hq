@@ -344,6 +344,67 @@ setInterval(() => {
   store.save();
   try { startHunt({ ...s, market_id: s.market_id || config.data.market_id }); } catch (e) { store.log(`Night plan: ${e.message}`, { kind: 'error' }); }
 }, 30e3);
+// ---- Ask the team + schedules ----------------------------------------------
+// The owner types what they want in plain words; the Team lead turns it into work.
+api.post('/ask', (req, res) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Write what the team should do.' });
+  if (text.length > 2000) return res.status(400).json({ error: 'Keep it under 2000 characters.' });
+  try { res.json(runner.enqueue('lead', { text })); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function cleanSchedule(b, old = {}) {
+  const kind = b.kind === 'ask' ? 'ask' : 'search';
+  const days = [...new Set((Array.isArray(b.days) ? b.days : old.days || [0, 1, 2, 3, 4, 5, 6]).map(Number).filter((d) => d >= 0 && d <= 6))].sort();
+  const time = /^\d{1,2}:\d{2}$/.test(String(b.time || '')) ? String(b.time).padStart(5, '0') : old.time || '09:00';
+  const s = { id: old.id || `sch_${crypto.randomBytes(5).toString('hex')}`, enabled: b.enabled ?? old.enabled ?? true, days, time, kind, last: old.last || '', last_at: old.last_at || '', created: old.created || new Date().toISOString() };
+  if (!days.length) throw new Error('Pick at least one day.');
+  if (kind === 'search') {
+    Object.assign(s, { niche: String(b.niche || '').trim(), city: String(b.city || '').trim(), count: Math.max(1, Math.min(30, Number(b.count) || 10)), build: Math.max(0, Math.min(5, Number(b.build ?? 2))), market_id: b.market_id || old.market_id || config.data.market_id });
+    if (!s.niche || !s.city) throw new Error('Pick a kind of business and a city.');
+  } else {
+    s.text = String(b.text || '').trim().slice(0, 2000);
+    if (!s.text) throw new Error('Write what the team should do.');
+  }
+  return s;
+}
+function runSchedule(s) {
+  if (s.kind === 'search') startHunt({ market_id: s.market_id, niche: s.niche, city: s.city, count: s.count, build: s.build });
+  else runner.enqueue('lead', { text: s.text, schedule_id: s.id });
+  store.log(say('schedule_ran', { w: s.kind === 'search' ? `${s.count} ${s.niche}, ${s.city}` : s.text.slice(0, 80) }), { kind: 'start' });
+}
+const saveSchedules = (list) => { config.data.schedules = list; config.save(); broadcast({ type: 'change', kind: 'settings' }); };
+api.get('/schedules', (req, res) => res.json(config.data.schedules));
+api.post('/schedules', (req, res) => {
+  try { const s = cleanSchedule(req.body || {}); saveSchedules([...config.data.schedules, s]); res.json(s); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+api.put('/schedules/:id', (req, res) => {
+  const old = config.data.schedules.find((x) => x.id === req.params.id);
+  if (!old) return res.status(404).json({ error: 'No such schedule.' });
+  try { const s = cleanSchedule({ ...old, ...req.body }, old); saveSchedules(config.data.schedules.map((x) => (x.id === s.id ? s : x))); res.json(s); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+api.delete('/schedules/:id', (req, res) => { saveSchedules(config.data.schedules.filter((x) => x.id !== req.params.id)); res.json({ ok: true }); });
+api.post('/schedules/:id/run', (req, res) => {
+  const s = config.data.schedules.find((x) => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: 'No such schedule.' });
+  try { runSchedule(s); s.last_at = new Date().toISOString(); config.save(); res.json(s); } catch (e) { res.status(400).json({ error: e.message }); }
+});
+// Fire each schedule once at its time (or within the hour after, if the computer was off at that minute).
+function scheduleTick() {
+  const d = new Date(), now = d.getHours() * 60 + d.getMinutes(), key = localDay(d);
+  let changed = false;
+  for (const s of config.data.schedules) {
+    if (!s.enabled || !s.days.includes(d.getDay())) continue;
+    const at = hhmm(s.time);
+    if (now < at || now > at + 60 || s.last === `${key} ${s.time}`) continue;
+    s.last = `${key} ${s.time}`; s.last_at = d.toISOString(); changed = true;
+    try { runSchedule(s); } catch (e) { store.log(`${s.kind === 'search' ? s.niche : 'Schedule'}: ${e.message}`, { kind: 'error' }); }
+  }
+  if (changed) { config.save(); broadcast({ type: 'change', kind: 'settings' }); }
+}
+setInterval(scheduleTick, 30e3);
+setTimeout(scheduleTick, 5000);
 setInterval(() => tunnel.check(), 5 * 60e3);
 
 api.post('/mode', (req, res) => {
@@ -722,6 +783,26 @@ agent.post('/approvals', (req, res) => {
   if (['email', 'whatsapp'].includes(a.type)) { if (!asleep()) telegram.notify(`✉️ A message to ${store.getLead(a.lead_id)?.business || a.to} is waiting for your approval.`); setTimeout(() => reviewMessage(a.id).catch(() => {}), 500); }
 });
 agent.get('/settings', (req, res) => { const run = req.runId && store.getRun(req.runId); const v = config.view(run && runner.marketOf(run)); res.json({ company: v.company, market: v.market, offer: v.offer }); });
+// The Team lead can start searches and hand businesses to specialists (never send or publish).
+agent.post('/hunts', (req, res) => {
+  const b = req.body || {};
+  try {
+    const h = startHunt({ market_id: config.data.market_id, niche: b.niche, city: b.city, count: Math.min(30, Number(b.count) || 10), build: Math.min(5, Number(b.build ?? 2)) });
+    res.json({ ok: true, search: h.id, message: `Search started: ${h.target} ${h.niche} in ${h.city}.` });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+const BATCH = ['investigator', 'opportunity', 'strategist', 'reviewer'];
+agent.post('/jobs', (req, res) => {
+  const { agent: who, lead_id } = req.body || {};
+  if (![...BATCH, 'builder', 'writer'].includes(who)) return res.status(400).json({ error: 'Unknown specialist.' });
+  const lead = store.getLead(lead_id);
+  if (!lead) return res.status(404).json({ error: 'No such business.' });
+  try {
+    if (who === 'builder' && !['approved', 'demo_built'].includes(lead.stage)) store.updateLead(lead.id, { stage: 'approved' }, 'Team lead: build the demo');
+    const run = runner.enqueue(who, BATCH.includes(who) ? { lead_ids: [lead.id] } : { lead_id: lead.id }, { autopilot: true });
+    res.json({ ok: true, job: run.id, message: `${run.title} is queued.` });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 app.use('/agent-api', agent);
 
 // ---- static app -------------------------------------------------------------

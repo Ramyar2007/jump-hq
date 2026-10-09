@@ -119,6 +119,7 @@ const kindOf = (w) => (w.storm > 0.5 ? 'storm' : w.snow > 0.2 ? 'snow' : w.rain 
 
 /* ---------------------------------------------------------------- roles */
 const ROLE = {
+  lead: { color: '#ff6b2c', icon: '🎯' },
   scout: { color: '#f59e0b', icon: '🔭', hat: 'cap' },
   investigator: { color: '#14b8a6', icon: '🔍', tool: 'glass' },
   opportunity: { color: '#eab308', icon: '📊' },
@@ -128,9 +129,10 @@ const ROLE = {
   writer: { color: '#06b6d4', icon: '✍️' },
   closer: { color: '#f43f5e', icon: '🤝', tool: 'phone' },
 };
-const ORDER = ['scout', 'investigator', 'opportunity', 'strategist', 'reviewer', 'builder', 'writer', 'closer'];
+const ORDER = ['lead', 'scout', 'investigator', 'opportunity', 'strategist', 'reviewer', 'builder', 'writer', 'closer'];
 // Rehearsal: the whole flow plays on the map without spending credits (clearly labelled on screen).
 const REHEARSE = {
+  lead: 'Planning the work: find 10 cafés in Sulaymaniyah',
   scout: 'Searching: beauty salons in Sulaymaniyah', investigator: 'Checking Instagram and Google Maps', opportunity: 'Scoring 5 businesses',
   strategist: 'Planning a Kurdish and English website', reviewer: 'Review: approved', builder: 'Building the demo website',
   writer: 'Writing the WhatsApp message in Sorani', closer: 'Message ready for you',
@@ -139,9 +141,11 @@ const TABLE_ROLES = new Set(['opportunity', 'strategist', 'reviewer']);
 const SLOT_X = [33.5, -33.5, 46.5, -46.5, 59.5, -59.5, 72.5, -72.5];
 const SHOP_Z = 12, TABLE = V(0, 0, 8), ITABLE = V(0, 0, -17.6);
 // The city grows ring by ring as the team builds more demos.
-const LEVEL_R = [74, 100, 126, 152, 178, 200], DEMOS_PER_LEVEL = 3;
+const WORLD = 440, LEVEL_R = [80, 115, 155, 200, 250, 305, 365, 430], DEMOS_PER_LEVEL = 2;
+// Avenues of the wider city (the inner streets are drawn in the detailed ground texture).
+const AVE_X = [-420, -310, -200, 200, 310, 420], AVE_Z = [-370, -260, -150, 200, 305, 410];
 // Desks inside Jump HQ: [x, z, facing] (1 = +x, -1 = -x, 0 = +z)
-const DESKS = { scout: [-10.4, -13.7, 1], investigator: [-10.4, -17.6, 1], opportunity: [-10.4, -21.5, 1], strategist: [-4.2, -23.1, 0], reviewer: [4.2, -23.1, 0], builder: [10.4, -21.5, -1], writer: [10.4, -17.6, -1], closer: [10.4, -13.7, -1] };
+const DESKS = { lead: [-5.6, -12.9, 0], scout: [-10.4, -13.7, 1], investigator: [-10.4, -17.6, 1], opportunity: [-10.4, -21.5, 1], strategist: [-4.2, -23.1, 0], reviewer: [4.2, -23.1, 0], builder: [10.4, -21.5, -1], writer: [10.4, -17.6, -1], closer: [10.4, -13.7, -1] };
 const DRONE_ROLES = ['scout', 'investigator', 'closer'];
 const FILLER_SIGNS = ['نانەوایی', 'دەرمانخانە', 'کافێ', 'بازاڕی بچووک', 'جلوبەرگ', 'مۆبایل', 'شیرینی', 'کتێبخانە'];
 const STATUS = {
@@ -226,17 +230,9 @@ function facade(kind, seed) {
   return { map: tex(c, { repeat: true }), em: tex(e, { repeat: true }) };
 }
 
-function groundTexture() {
-  const S = 4096, k = S / 360, X = (x) => (x + 180) * k, Z = (z) => (z + 180) * k;
+function groundTexture(S = 4096) {
+  const k = S / 360, X = (x) => (x + 180) * k, Z = (z) => (z + 180) * k;
   const [c, g] = canvas(S, S);
-  const [n, ng] = canvas(512, 512), img = ng.createImageData(512, 512);
-  const dry = rgb('#9a9161'), soil = rgb('#a88f66'), green = rgb('#76804a');
-  for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
-    const v = fbm(x / 70, y / 70, 5), w = fbm(x / 19 + 40, y / 19, 3);
-    let p = mixRgb(dry, green, smooth(0.45, 0.62, v)); p = mixRgb(p, soil, smooth(0.55, 0.7, w) * 0.6);
-    const i = (y * 512 + x) * 4; img.data[i] = p[0] * (0.92 + w * 0.12); img.data[i + 1] = p[1] * (0.92 + w * 0.12); img.data[i + 2] = p[2] * (0.92 + w * 0.12); img.data[i + 3] = 255;
-  }
-  ng.putImageData(img, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(n, 0, 0, S, S);
   const rect = (x0, z0, x1, z1, f) => { g.fillStyle = f; g.fillRect(X(x0), Z(z0), (x1 - x0) * k, (z1 - z0) * k); };
   // park across the street
   rect(-30, 37, 30, 84, '#5d8a3a');
@@ -270,8 +266,35 @@ function groundTexture() {
   g.strokeStyle = '#ff6b2c'; g.lineWidth = 0.3 * k; g.beginPath(); g.arc(X(TABLE.x), Z(TABLE.z), 5.4 * k, 0, 7); g.stroke();
   g.strokeStyle = 'rgba(90,80,60,.3)'; g.lineWidth = 3;
   for (let a = 0; a < 24; a++) { const t = (a / 24) * Math.PI * 2; g.beginPath(); g.moveTo(X(TABLE.x + Math.cos(t) * 5.8), Z(TABLE.z + Math.sin(t) * 5.8)); g.lineTo(X(TABLE.x + Math.cos(t) * 7), Z(TABLE.z + Math.sin(t) * 7)); g.stroke(); }
-  // fine grain over everything
+  // fine grain over what was drawn (the rest stays clear: the city ground shows through)
+  g.globalCompositeOperation = 'source-atop';
   for (let i = 0; i < 160000; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},${R(0.015, 0.05)})`; g.fillRect(R(0, S), R(0, S), R(1, 3), R(1, 3)); }
+  g.globalCompositeOperation = 'source-over';
+  return tex(c);
+}
+
+// The wide city ground: soil and dry grass, the avenues and the long streets.
+function cityGround(S) {
+  const W = WORLD * 2 + 20, k = S / W, X = (x) => (x + W / 2) * k, Z = (z) => (z + W / 2) * k;
+  const [c, g] = canvas(S, S), [n, ng] = canvas(512, 512), img = ng.createImageData(512, 512);
+  const dry = rgb('#9c9466'), soil = rgb('#ab9470'), green = rgb('#7a8350');
+  for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
+    const v = fbm(x / 46, y / 46, 5), w = fbm(x / 13 + 40, y / 13, 3);
+    let p = mixRgb(dry, green, smooth(0.45, 0.62, v)); p = mixRgb(p, soil, smooth(0.55, 0.7, w) * 0.6);
+    const i = (y * 512 + x) * 4, sh = 0.92 + w * 0.12; img.data[i] = p[0] * sh; img.data[i + 1] = p[1] * sh; img.data[i + 2] = p[2] * sh; img.data[i + 3] = 255;
+  }
+  ng.putImageData(img, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(n, 0, 0, S, S);
+  const rect = (x0, z0, x1, z1, f) => { g.fillStyle = f; g.fillRect(X(x0), Z(z0), Math.max(1, (x1 - x0) * k), Math.max(1, (z1 - z0) * k)); };
+  const side = '#c4bdb0', asph = '#3b3e43', E = W / 2;
+  const roadX = (cx, h) => { rect(cx - h - 3, -E, cx + h + 3, E, side); rect(cx - h, -E, cx + h, E, asph); g.fillStyle = '#e8e6e0'; for (let z = -E; z < E; z += 6) g.fillRect(X(cx - 0.08), Z(z), Math.max(1, 0.16 * k), 3 * k); };
+  const roadZ = (cz, h) => { rect(-E, cz - h - 3, E, cz + h + 3, side); rect(-E, cz - h, E, cz + h, asph); g.fillStyle = '#e8e6e0'; for (let x = -E; x < E; x += 6) g.fillRect(X(x), Z(cz - 0.08), 3 * k, Math.max(1, 0.16 * k)); };
+  for (const z of AVE_Z) roadZ(z, 4);
+  for (const z of [-40.5, 95.5]) roadZ(z, 3.5);
+  roadZ(29, 5);
+  for (const x of AVE_X) roadX(x, 4);
+  for (const x of [-87.5, 87.5]) roadX(x, 3.5);
+  for (const x of AVE_X.concat([-87.5, 87.5])) for (const z of AVE_Z.concat([-40.5, 95.5, 29])) rect(x - 4, z - 4, x + 4, z + 4, asph);
+  for (let i = 0; i < 70000; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},${R(0.015, 0.05)})`; g.fillRect(R(0, S), R(0, S), R(1, 2.5), R(1, 2.5)); }
   return tex(c);
 }
 
@@ -429,13 +452,31 @@ function animatePerson(p, dt, T, { moving = 0, action = 'idle', rain = 0 }) {
 }
 const turnTo = (cur, target, k) => { let d = target - cur; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return cur + d * k; };
 
+/* ======================================================= 2D fallback */
+// No 3D on this computer (old graphics, blocked WebGL): show the team as a simple live board instead.
+function fallbackBoard(stage, api, why) {
+  const t = api.t;
+  stage.innerHTML = `<div class="mp-board"><div class="mp-board-h"><b>${esc(t('Your AI team'))}</b><span>${esc(why)}</span></div><div class="mp-board-l"></div></div>`;
+  const list = stage.querySelector('.mp-board-l');
+  const draw = () => {
+    if (!stage.isConnected) return clearInterval(timer);
+    const st = api.getState(), names = Object.fromEntries((st.agents || []).map((a) => [a.key, a.name]));
+    list.innerHTML = ORDER.map((k) => {
+      const run = st.runs.find((r) => r.agent === k && r.status === 'running'), q = st.runs.some((r) => r.agent === k && r.status === 'queued');
+      const ev = run ? (st.events[run.id] || []).map(api.eventText).filter(Boolean).slice(-1)[0] || run.title : '';
+      return `<div class="mp-board-r ${run ? 'on' : ''}" style="--c:${ROLE[k].color}"><i>${ROLE[k].icon}</i><div><b>${esc(names[k] || k)}</b><span>${esc(run ? ev : q ? t('Waiting') : t('Ready'))}</span></div></div>`;
+    }).join('');
+  };
+  const timer = setInterval(draw, 1500); draw();
+}
+
 /* ================================================================ mount */
 export function mount(stage, api) {
   const t = api.t;
-  stage.innerHTML = '';
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }); }
-  catch { stage.innerHTML = `<div class="mp-empty">${esc(t('Your browser cannot show 3D graphics.'))}</div>`; return; }
+  catch { fallbackBoard(stage, api, t('This computer cannot show the 3D map, so here is the team as a list.')); return; }
+  renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); dispose(); fallbackBoard(stage, api, t('The graphics card stopped the 3D map. Reload the page to try again.')); });
   MAXANISO = renderer.capabilities.getMaxAnisotropy();
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
@@ -444,7 +485,11 @@ export function mount(stage, api) {
 
   const prefs = (() => { try { return JSON.parse(localStorage.getItem('jhq-map') || '{}'); } catch { return {}; } })();
   const savePrefs = () => { try { localStorage.setItem('jhq-map', JSON.stringify(prefs)); } catch { /* private window */ } };
-  prefs.time ||= 'live'; prefs.wx ||= 'live'; prefs.q ||= 'high'; prefs.team ||= 'live';
+  prefs.time ||= 'live'; prefs.wx ||= 'live'; prefs.q ||= 'auto'; prefs.team ||= 'live';
+  // How strong is this computer? Weak graphics start light; the frame-rate check below adjusts from there.
+  const gpu = (() => { try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch { return ''; } })();
+  const weak = /swiftshader|llvmpipe|software|mali|adreno|powervr|intel\(r\) (hd|uhd) graphics [2-6]|intel.*hd graphics( \d{3,4})?$/i.test(gpu) || (navigator.deviceMemory && navigator.deviceMemory <= 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+  let tier = prefs.q === 'auto' ? (weak ? 'fast' : 'high') : prefs.q;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.5, 4000);
@@ -452,7 +497,7 @@ export function mount(stage, api) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 3, 6);
   controls.enableDamping = true; controls.dampingFactor = 0.07;
-  controls.minDistance = 12; controls.maxDistance = 300; controls.maxPolarAngle = 1.42;
+  controls.minDistance = 12; controls.maxDistance = 650; controls.maxPolarAngle = 1.42;
   controls.autoRotateSpeed = 0.35; controls.autoRotate = !!prefs.rotate;
 
   const composer = new EffectComposer(renderer);
@@ -500,16 +545,17 @@ export function mount(stage, api) {
   scene.fog = new THREE.FogExp2('#cfe3f7', 0.0018);
 
   /* ---------------- ground, water, snow */
-  const groundMat = new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 0.95 });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), groundMat); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const outer = new THREE.Mesh(new THREE.RingGeometry(254, 2600, 64, 1), new THREE.MeshStandardMaterial({ color: '#8f8a5c', roughness: 1 })); outer.rotation.x = -Math.PI / 2; outer.position.y = -0.04; outer.receiveShadow = true; scene.add(outer);
-  const edge = new THREE.Mesh(new THREE.PlaneGeometry(520, 520), new THREE.MeshStandardMaterial({ color: '#8f8a5c', roughness: 1 })); edge.rotation.x = -Math.PI / 2; edge.position.y = -0.06; scene.add(edge);
-  const puddles = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), new THREE.MeshStandardMaterial({ color: '#1d2228', roughness: 0.04, metalness: 0.35, transparent: true, opacity: 0, alphaMap: blobTexture(3, 0.56, 0.6), depthWrite: false }));
-  puddles.material.alphaMap.wrapS = puddles.material.alphaMap.wrapT = THREE.RepeatWrapping; puddles.material.alphaMap.repeat.set(6, 6);
-  puddles.rotation.x = -Math.PI / 2; puddles.position.y = 0.03; puddles.receiveShadow = true; scene.add(puddles);
-  const snowLayer = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), new THREE.MeshStandardMaterial({ color: '#f4f7fb', roughness: 0.85, transparent: true, opacity: 0, alphaMap: blobTexture(11, 0.28, 0.5), depthWrite: false }));
-  snowLayer.material.alphaMap.wrapS = snowLayer.material.alphaMap.wrapT = THREE.RepeatWrapping; snowLayer.material.alphaMap.repeat.set(5, 5);
-  snowLayer.rotation.x = -Math.PI / 2; snowLayer.position.y = 0.05; snowLayer.receiveShadow = true; scene.add(snowLayer);
+  const cityMat = new THREE.MeshStandardMaterial({ map: cityGround(weak ? 1024 : 2048), roughness: 0.96 });
+  const cityFloor = new THREE.Mesh(new THREE.PlaneGeometry(WORLD * 2 + 20, WORLD * 2 + 20), cityMat); cityFloor.rotation.x = -Math.PI / 2; cityFloor.receiveShadow = true; scene.add(cityFloor);
+  const groundMat = new THREE.MeshStandardMaterial({ map: groundTexture(weak ? 2048 : 4096), roughness: 0.95, transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), groundMat); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; ground.renderOrder = 1; scene.add(ground);
+  const outer = new THREE.Mesh(new THREE.RingGeometry(WORLD + 5, 3200, 64, 1), new THREE.MeshStandardMaterial({ color: '#958d60', roughness: 1 })); outer.rotation.x = -Math.PI / 2; outer.position.y = -0.05; outer.receiveShadow = true; scene.add(outer);
+  const puddles = new THREE.Mesh(new THREE.PlaneGeometry(WORLD * 2, WORLD * 2), new THREE.MeshStandardMaterial({ color: '#1d2228', roughness: 0.04, metalness: 0.35, transparent: true, opacity: 0, alphaMap: blobTexture(3, 0.56, 0.6), depthWrite: false }));
+  puddles.material.alphaMap.wrapS = puddles.material.alphaMap.wrapT = THREE.RepeatWrapping; puddles.material.alphaMap.repeat.set(15, 15);
+  puddles.rotation.x = -Math.PI / 2; puddles.position.y = 0.03; puddles.renderOrder = 2; puddles.receiveShadow = true; scene.add(puddles);
+  const snowLayer = new THREE.Mesh(new THREE.PlaneGeometry(WORLD * 2, WORLD * 2), new THREE.MeshStandardMaterial({ color: '#f4f7fb', roughness: 0.85, transparent: true, opacity: 0, alphaMap: blobTexture(11, 0.28, 0.5), depthWrite: false }));
+  snowLayer.material.alphaMap.wrapS = snowLayer.material.alphaMap.wrapT = THREE.RepeatWrapping; snowLayer.material.alphaMap.repeat.set(12, 12);
+  snowLayer.rotation.x = -Math.PI / 2; snowLayer.position.y = 0.05; snowLayer.renderOrder = 3; snowLayer.receiveShadow = true; scene.add(snowLayer);
 
   /* ---------------- mountains: Goizha to the north */
   function ridge(width, depth, zc, peak, seed, xs = 1) {
@@ -527,9 +573,9 @@ export function mount(stage, api) {
     geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, flatShading: false }));
     mesh.receiveShadow = true; scene.add(mesh);
-    return { geo, H, peak };
+    return { geo, H, peak, mesh };
   }
-  const mountains = [ridge(1700, 380, -470, 170, 2), ridge(2600, 500, -900, 330, 7, 0.7)];
+  const mountains = [ridge(2600, 440, -760, 230, 2), ridge(3600, 620, -1300, 420, 7, 0.7)];
   const lowC = rgb('#8a8256').map((v) => v / 255), midC = rgb('#7c6b55').map((v) => v / 255), hiC = rgb('#a19686').map((v) => v / 255), snowC = [0.93, 0.95, 0.98];
   let snowLineNow = -1;
   function paintMountains(line) {
@@ -571,6 +617,15 @@ export function mount(stage, api) {
   const local = (cx, cz, ry, lx, lz) => { const c = Math.cos(ry), s = Math.sin(ry); return [cx + lx * c + lz * s, cz - lx * s + lz * c]; };
   const PALETTE = ['#efe6d6', '#e8dcc6', '#f1ece2', '#e5d3b8', '#d9cbb5', '#ece4da', '#e3d9cf', '#d8c3a5', '#f3e9dc', '#cdbfae'];
 
+  // a low old-town house (shown where the modern city has not grown yet)
+  function house(x, z, w, d, ry = 0) {
+    const h = Math.round(R(1, 2.4)) * 3.2 + 0.4, color = pick(PALETTE);
+    add('fac2', boxUV(w, h, d, Math.floor(R(0, 8)) / 8), x, h / 2, z, { ry, color });
+    add('roof', new THREE.BoxGeometry(w + 0.4, 0.5, d + 0.4), x, h + 0.25, z, { ry, color: pick(['#bdb6aa', '#c8c1b5', '#b0a99d']) });
+    add('snow', new THREE.BoxGeometry(w - 0.2, 0.12, d - 0.2), x, h + 0.56, z, { ry });
+    if (rnd() < 0.6) add('misc', new THREE.CylinderGeometry(0.55, 0.55, 1.2, 10), x + R(-w / 3, w / 3), h + 1.1, z + R(-d / 3, d / 3), { color: pick(['#f0f0ee', '#1d1f22', '#2f6db5']) });
+  }
+  let lod = false; // far buildings get fewer details (keeps weak computers fast)
   function building(x, z, w, d, h, kind, ry = 0) {
     const color = pick(PALETTE), roofC = pick(['#bdb6aa', '#c8c1b5', '#b0a99d']);
     add({ apt: 'fac0', office: 'fac1', old: 'fac2' }[kind], boxUV(w, h, d, Math.floor(R(0, 8)) / 8), x, h / 2, z, { ry, color: kind === 'office' ? pick(['#e8ecf1', '#dfe5ec', '#f0f2f5']) : color });
@@ -581,6 +636,7 @@ export function mount(stage, api) {
     add('snow', new THREE.BoxGeometry(w - 0.3, 0.14, d - 0.3), x, h + 0.38, z, { ry });
     const tanks = rnd() < 0.85 ? 1 + Math.floor(R(0, 3)) : 0;
     for (let i = 0; i < tanks; i++) { const [px, pz] = local(x, z, ry, R(-w / 2 + 1.2, w / 2 - 1.2), R(-d / 2 + 1.2, d / 2 - 1.2)); add('misc', new THREE.CylinderGeometry(0.6, 0.6, 1.3, 16), px, h + 0.95, pz, { color: pick(['#f0f0ee', '#1d1f22', '#2f6db5', '#e8e2d0', '#f0f0ee']) }); }
+    if (lod) return;
     if (rnd() < 0.4) { const [px, pz] = local(x, z, ry, R(-w / 2 + 1, w / 2 - 1), d / 2 - 0.8); add('misc', new THREE.CylinderGeometry(0.55, 0.45, 0.08, 20), px, h + 1.1, pz, { ry, rx: -0.9, color: '#e9eaec' }); }
     for (let i = 0, n = Math.floor(R(1, 4)); i < n; i++) { const [px, pz] = local(x, z, ry, R(-w / 2 + 0.8, w / 2 - 0.8), d / 2 + 0.2); add('misc', new THREE.BoxGeometry(0.85, 0.55, 0.38), px, Math.floor(R(1, h / 3.2)) * 3.2 + 0.4, pz, { ry, color: '#e6e8ea' }); }
     if (kind === 'apt') {
@@ -598,26 +654,28 @@ export function mount(stage, api) {
   // city blocks around the street, deterministic
   rnd = mulberry(2024);
   const blocked = (x, z, w, d) => {
-    const r = [[-30, -38, 30, 24], [-84, 4, 84, 37], [-32, 34, 32, 86], [-180, 18, 180, 38], [-180, -48, 180, -33], [-180, 88, 180, 103], [79, -180, 96, 180], [-96, -180, -79, 180]];
-    return r.some(([a, b, c2, e]) => x + w / 2 > a && x - w / 2 < c2 && z + d / 2 > b && z - d / 2 < e);
+    const E = WORLD, r = [[-30, -38, 30, 24], [-84, 4, 84, 37], [-32, 34, 32, 86], [-E, 18, E, 38], [-E, -48, E, -33], [-E, 88, E, 103], [79, -E, 96, E], [-96, -E, -79, E]];
+    return r.some(([a, b, c2, e]) => x + w / 2 > a && x - w / 2 < c2 && z + d / 2 > b && z - d / 2 < e)
+      || AVE_X.some((ax) => Math.abs(x - ax) < w / 2 + 7.5) || AVE_Z.some((az) => Math.abs(z - az) < d / 2 + 7.5);
   };
-  for (let x = -176; x < 176; x += R(13, 17)) {
-    for (let z = -176; z < 176; z += R(14, 19)) {
+  for (let x = -WORLD; x < WORLD; x += R(13, 17)) {
+    for (let z = -WORLD; z < WORLD; z += R(14, 19)) {
       const w = R(9, 14), d = R(9, 13), cx = x + w / 2, cz = z + d / 2;
-      const dist = Math.hypot(cx, cz) + Math.max(w, d) / 2;
-      curLevel = LEVEL_R.findIndex((r) => dist <= r);
-      if (blocked(cx, cz, w + 1, d + 1) || curLevel < 0) continue;
-      const far = cz < -48, south = cz > 38;
-      const h = south ? R(6.4, 13) : far ? R(12, 38) : R(9.6, 24);
+      const dist = Math.hypot(cx, cz) + Math.max(w, d) / 2, level = LEVEL_R.findIndex((rr) => dist <= rr);
+      if (level < 0 || blocked(cx, cz, w + 1, d + 1)) continue;
+      const near = dist < 190, south = cz > 38 && near, ry = cz > 38 ? Math.PI : 0;
+      const h = south ? R(6.4, 13) : near ? (cz < -48 ? R(12, 38) : R(9.6, 24)) : R(9.6, 18) + (dist < 300 ? R(0, 22) : 0);
       const kind = h > 26 && rnd() < 0.6 ? 'office' : rnd() < 0.3 ? 'old' : 'apt';
-      building(cx, cz, w, d, Math.round(h / 3.2) * 3.2, kind, south ? Math.PI : 0);
+      lod = dist > 200;
+      curLevel = level; building(cx, cz, w, d, Math.round(h / 3.2) * 3.2, kind, ry);
+      if (level > 0) { curLevel = `h${level}`; house(cx, cz, w * R(0.75, 0.95), d * R(0.75, 0.95), ry); }
     }
   }
   const cityMeshes = [];
   for (const [lk, geos] of Object.entries(buckets)) {
     const [lv, k] = lk.split('|');
     const m = new THREE.Mesh(mergeGeometries(geos), mats[k]); m.castShadow = k !== 'snow'; m.receiveShadow = true; scene.add(m);
-    cityMeshes.push({ m, level: +lv, snow: k === 'snow' });
+    cityMeshes.push({ m, level: +String(lv).replace('h', ''), house: String(lv).startsWith('h'), snow: k === 'snow' });
     geos.forEach((g) => g.dispose());
   }
   let cityR = LEVEL_R[0], cityLevel = 1;
@@ -625,7 +683,7 @@ export function mount(stage, api) {
     cityR = lerp(cityR, LEVEL_R[cityLevel - 1], 1 - Math.exp(-dt * 0.8));
     for (const c of cityMeshes) {
       const lo = c.level ? LEVEL_R[c.level - 1] : 0, hi = LEVEL_R[c.level];
-      const g = smooth(0, 1, (cityR - lo + 2) / (hi - lo));
+      const grown = smooth(0, 1, (cityR - lo + 2) / (hi - lo)), g = c.house ? 1 - smooth(0, 0.35, grown) : grown;
       c.m.scale.y = Math.max(0.001, g); c.m.visible = g > 0.002 && (!c.snow || snowCover > 0.01);
     }
   }
@@ -640,6 +698,8 @@ export function mount(stage, api) {
   for (let z = -176; z <= 170; z += 8) { addTree(96, z, 'poplar'); addTree(-96, z, 'poplar'); }
   for (const [x, z] of [[-24, -8], [24, -8], [-24, 17], [24, 17], [-24, -30], [24, -30]]) addTree(x, z, 'round', 1.15);
   for (let x = -176; x <= 176; x += 9) addTree(x + R(-2, 2), -49, rnd() < 0.5 ? 'poplar' : 'round');
+  for (const ax of AVE_X) for (let z = -WORLD; z <= WORLD; z += 18) if (Math.hypot(ax, z) < WORLD && !AVE_Z.some((az) => Math.abs(z - az) < 10)) addTree(ax + 6, z + R(-2, 2), rnd() < 0.6 ? 'poplar' : 'round', 0.9);
+  for (const az of AVE_Z) for (let x = -WORLD; x <= WORLD; x += 18) if (Math.hypot(x, az) < WORLD && !AVE_X.some((ax) => Math.abs(x - ax) < 10)) addTree(x + R(-2, 2), az + 6, rnd() < 0.5 ? 'poplar' : 'round', 0.9);
   const crownGeo = new THREE.IcosahedronGeometry(1, 2); { const p = crownGeo.attributes.position; for (let i = 0; i < p.count; i++) { const v = V(p.getX(i), p.getY(i), p.getZ(i)); v.multiplyScalar(1 + (fbm(v.x * 2 + 9, v.y * 2 + v.z) - 0.5) * 0.5); p.setXYZ(i, v.x, v.y, v.z); } crownGeo.computeVertexNormals(); }
   const poplarGeo = new THREE.ConeGeometry(1, 1, 9, 4); { const p = poplarGeo.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i); const k = 1 + (h2(i, 1) - 0.5) * 0.25; p.setX(i, p.getX(i) * k * (1 - Math.max(0, -y - 0.3) * 0.6)); p.setZ(i, p.getZ(i) * k); } poplarGeo.computeVertexNormals(); }
   const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.85, flatShading: true });
@@ -652,7 +712,7 @@ export function mount(stage, api) {
   poplars.forEach((tr, i) => poplarMesh.setColorAt(i, C(LEAF[h2(i, 8) < 0.35 ? 4 + Math.floor(h2(i, 2) * 3) : Math.floor(h2(i, 9) * 4)])));
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler(), one = V(1, 1, 1);
   let cityRT = LEVEL_R[0];
-  const treeG = (tr) => (tr.d < 90 ? 1 : smooth(0, 1, (cityRT - tr.d + 6) / 8)) || 1e-3;
+  const treeG = () => 1;
   function swayTrees(T, wind) {
     const amp = 0.015 + wind * 0.006;
     trees.forEach((tr, i) => { const g = treeG(tr), th = (tr.type === 'poplar' ? 3.2 : 2.4) * tr.s * g; trunkMesh.setMatrixAt(i, mtx.compose(V(tr.x, th / 2, tr.z), q.identity(), V(tr.s * g, th, tr.s * g))); });
@@ -806,7 +866,7 @@ export function mount(stage, api) {
     const at = (lx, lz) => { const [dx, dz] = rot(ry, lx, lz); return V(x + dx, 0, z + dz); };
     return [k, { ry, spot: at(0, -0.85), side: at(1.3, -0.85), front: at(1.3, 1.05), scr: [sc, sg], scrTex, scrKey: '', pad }];
   }));
-  const BREAKS = [{ n: 'coffee', p: V(0, 0, -23.45), ry: Math.PI }, { n: 'window', p: V(-6.5, 0, -11.75), ry: 0 }, { n: 'window2', p: V(2.5, 0, -11.75), ry: 0 }, { n: 'sofa', p: V(4.6, 0, -13.2), ry: Math.PI / 2 }];
+  const BREAKS = [{ n: 'coffee', p: V(0, 0, -23.45), ry: Math.PI }, { n: 'window', p: V(-8.6, 0, -11.75), ry: 0 }, { n: 'window2', p: V(2.5, 0, -11.75), ry: 0 }, { n: 'sofa', p: V(4.6, 0, -13.2), ry: Math.PI / 2 }];
 
   /* ---------------- drones and the build beam: the team's work out on the street */
   const droneMat = new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.6, roughness: 0.35 });
@@ -877,7 +937,7 @@ export function mount(stage, api) {
   const glowTex = glowTexture();
 
   /* ---------------- cars */
-  const cars = [...Array(9)].map((_, i) => {
+  const cars = [...Array(14)].map((_, i) => {
     const g = new THREE.Group(); scene.add(g);
     const paint = new THREE.MeshStandardMaterial({ color: pick(['#f4f4f2', '#c0c4ca', '#111317', '#8b1e1e', '#d9cbb0', '#f4f4f2', '#55606e', '#1f3a68', '#f4f4f2']), metalness: 0.55, roughness: 0.3 });
     const body = new THREE.Mesh(new THREE.BoxGeometry(4.3, 0.78, 1.86), paint); body.position.y = 0.72; body.castShadow = true; g.add(body);
@@ -891,7 +951,7 @@ export function mount(stage, api) {
     const beamM = new THREE.MeshBasicMaterial({ color: '#fff1d0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
     const cone = new THREE.Mesh(new THREE.ConeGeometry(1.6, 9, 20, 1, true), beamM); cone.rotation.z = Math.PI / 2; cone.position.set(6.6, 0.7, 0); g.add(cone);
     const dir = i % 2 ? -1 : 1;
-    g.position.set(R(-170, 170), 0, dir > 0 ? 26.6 : 31.4); g.rotation.y = dir > 0 ? 0 : Math.PI;
+    g.position.set(R(-290, 290), 0, dir > 0 ? 26.6 : 31.4); g.rotation.y = dir > 0 ? 0 : Math.PI;
     return { g, dir, v: R(8, 13), base: 0, wheels, headMatC, tailMat, beamM };
   });
 
@@ -997,7 +1057,7 @@ export function mount(stage, api) {
   const hud = document.createElement('div'); hud.className = 'mp-ui'; stage.appendChild(hud);
   const TIMES = [['live', 'Live'], ['dawn', 'Dawn'], ['day', 'Day'], ['noon', 'Noon'], ['sunset', 'Sunset'], ['night', 'Night'], ['lapse', 'Time-lapse']];
   const WXS = [['live', 'Live'], ['clear', 'Clear'], ['clouds', 'Clouds'], ['rain', 'Rain'], ['storm', 'Storm'], ['snow', 'Snow'], ['fog', 'Fog']];
-  const QS = [['fast', 'Fast'], ['high', 'High'], ['ultra', '4K']];
+  const QS = [['auto', 'Auto'], ['lite', 'Light'], ['fast', 'Fast'], ['high', 'High'], ['ultra', '4K']];
   const TEAMS = [['live', 'Live'], ['demo', 'Rehearsal']];
   const seg = (g, list, cur) => `<div class="mp-seg" data-g="${g}">${list.map(([k, l]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${esc(t(l))}</button>`).join('')}</div>`;
   hud.innerHTML = `
@@ -1009,7 +1069,7 @@ export function mount(stage, api) {
       <div class="mp-row"><span>${esc(t('Time'))}</span>${seg('time', TIMES, prefs.time)}</div>
       <div class="mp-row"><span>${esc(t('Weather'))}</span>${seg('wx', WXS, prefs.wx)}</div>
       <div class="mp-row"><span>${esc(t('Team'))}</span>${seg('team', TEAMS, prefs.team)}</div>
-      <div class="mp-row"><span>${esc(t('Quality'))}</span>${seg('q', QS, prefs.q)}<button class="mp-btn ${prefs.rotate ? 'on' : ''}" data-act="rotate">⟳ ${esc(t('Auto-rotate'))}</button><button class="mp-btn" data-act="reset">${esc(t('Reset view'))}</button><button class="mp-btn" data-act="full">⛶ ${esc(t('Full screen'))}</button></div>
+      <div class="mp-row"><span>${esc(t('Quality'))}</span>${seg('q', QS, prefs.q)}<span class="mp-tier"></span><button class="mp-btn ${prefs.rotate ? 'on' : ''}" data-act="rotate">⟳ ${esc(t('Auto-rotate'))}</button><button class="mp-btn" data-act="reset">${esc(t('Reset view'))}</button><button class="mp-btn" data-act="full">⛶ ${esc(t('Full screen'))}</button></div>
     </div>
     <div class="mp-team"></div>
     <div class="mp-card" hidden></div>
@@ -1040,12 +1100,17 @@ export function mount(stage, api) {
 
   /* ---------------- quality, resize */
   function applyQuality() {
+    if (prefs.q !== 'auto') tier = prefs.q;
     const w = stage.clientWidth || 800, dpr = window.devicePixelRatio || 1;
-    const pr = prefs.q === 'fast' ? 1 : prefs.q === 'ultra' ? clamp(Math.max(dpr, 3840 / w), 1, 3) : Math.min(dpr, 2);
+    const pr = tier === 'lite' ? Math.min(dpr, 1) * 0.7 : tier === 'fast' ? Math.min(dpr, 1) : tier === 'ultra' ? clamp(Math.max(dpr, 3840 / w), 1, 3) : Math.min(dpr, 2);
     renderer.setPixelRatio(pr); composer.setPixelRatio(pr);
-    const sm = prefs.q === 'fast' ? 1024 : prefs.q === 'ultra' ? 4096 : 2048;
+    const sm = tier === 'fast' ? 1024 : tier === 'ultra' ? 4096 : 2048;
+    key.castShadow = tier !== 'lite';
     if (key.shadow.mapSize.x !== sm) { key.shadow.mapSize.set(sm, sm); key.shadow.map?.dispose(); key.shadow.map = null; }
-    bloom.enabled = prefs.q !== 'fast';
+    bloom.enabled = tier === 'high' || tier === 'ultra';
+    mountains[1].mesh.visible = tier !== 'lite';
+    camera.far = tier === 'lite' ? 2200 : 4000; camera.updateProjectionMatrix();
+    renderer.antialias = tier !== 'lite';
     snowMat.uniforms.uPx.value = pr;
     resize();
   }
@@ -1065,7 +1130,7 @@ export function mount(stage, api) {
   const clampRoom = (v, pad = 0.3) => v.set(clamp(v.x, -13.2 + pad, 13.2 - pad), clamp(v.y, 0.6, 4.25), clamp(v.z, -24.8 + pad, -11.25));
   function setLimits() {
     const inn = view === 'inside';
-    controls.minDistance = inn ? 1.2 : 12; controls.maxDistance = inn ? 11 : 300; controls.maxPolarAngle = inn ? 1.65 : 1.42;
+    controls.minDistance = inn ? 1.2 : 12; controls.maxDistance = inn ? 11 : 650; controls.maxPolarAngle = inn ? 1.65 : 1.42;
     controls.autoRotate = !inn && !!prefs.rotate; hud.classList.toggle('in', inn);
   }
   function goInside(k) {
@@ -1158,7 +1223,7 @@ export function mount(stage, api) {
   const slotOf = (leadId) => shops.find((s) => s.lead?.id === leadId);
   let demoStart = performance.now();
   function rehearsal() {
-    const SECS = [16, 14, 8, 8, 7, 20, 11, 13], total = SECS.reduce((x, y) => x + y, 0);
+    const SECS = [8, 16, 14, 8, 8, 7, 20, 11, 13], total = SECS.reduce((x, y) => x + y, 0);
     let tt = ((performance.now() - demoStart) / 1000) % total, step = 0;
     while (tt > SECS[step]) { tt -= SECS[step]; step++; }
     const k = ORDER[step];
@@ -1351,6 +1416,7 @@ export function mount(stage, api) {
   }
 
   const tmpC = C('#fff'), tmpH = C('#fff'), sunCol = C('#fff'), sunD = V(), moonD = V(), greyT = C('#7b858f'), greyH = C('#a3acb5'), labelV = V();
+  const fps = { n: 0, t: -2, last: 0, down: 0 };
   let T = 0, last = performance.now(), raf = 0, syncT = 0, ledT = 0, frameN = 0, clockAt = 0;
   sync();
 
@@ -1374,7 +1440,14 @@ export function mount(stage, api) {
     if (!stage.isConnected) { dispose(); return; }
     raf = requestAnimationFrame(frame);
     if (document.hidden) return;
-    const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt; frameN++;
+    const rawDt = (now - last) / 1000, dt = Math.min(0.05, rawDt); last = now; T += dt; frameN++;
+    fps.n++; fps.t += rawDt;
+    if (fps.t > 4) { // every 4 seconds: too slow? go lighter. Plenty of room? go back up once.
+      const f = fps.n / fps.t; fps.n = 0; fps.t = 0; fps.last = Math.round(f);
+      if (prefs.q === 'auto' && f < 26 && tier !== 'lite') { tier = { ultra: 'high', high: 'fast', fast: 'lite' }[tier]; fps.down++; applyQuality(); }
+      else if (prefs.q === 'auto' && f > 57 && tier === 'fast' && !weak && !fps.down) { tier = 'high'; applyQuality(); }
+      setHTML($h('.mp-tier'), prefs.q === 'auto' ? `${t('Now')}: ${t({ lite: 'Light', fast: 'Fast', high: 'High', ultra: '4K' }[tier])} · ${fps.last} fps` : `${fps.last} fps`);
+    }
     syncT -= dt; if (syncT <= 0) { syncT = 0.6; sync(); }
     ledT -= dt; if (ledT <= 0) { ledT = 2; drawLed(); }
 
@@ -1410,7 +1483,7 @@ export function mount(stage, api) {
     else if (mo.alt > 0) { key.position.copy(key.target.position).addScaledVector(moonD, 300); key.color.set('#a9bde0'); key.intensity = 0.42 * smooth(0, 0.2, mo.alt) * (1 - 0.85 * oc); }
     else key.intensity = 0;
     hemi.color.copy(tmpC).lerp(C('#ffffff'), 0.35); hemi.intensity = 0.16 + 1.05 * smooth(-9, 10, e) * (1 + 0.25 * oc) + fl * 4;
-    scene.fog.color.copy(tmpH).lerp(tmpC, 0.35).multiplyScalar(0.92); scene.fog.density = 0.0012 + W.fog * 0.012 + W.rain * 0.0035 + W.snow * 0.004;
+    scene.fog.color.copy(tmpH).lerp(tmpC, 0.35).multiplyScalar(0.92); scene.fog.density = (0.0012 + W.fog * 0.012 + W.rain * 0.0035 + W.snow * 0.004) * clamp(220 / Math.max(1, camera.position.distanceTo(controls.target)), 0.3, 1);
     renderer.toneMappingExposure = lerp(1.0, 1.5, night);
     bloom.strength = lerp(0.16, 0.42, night) + fl * 0.4; bloom.threshold = lerp(0.95, 0.86, night); bloom.radius = 0.4;
     // city lights
@@ -1426,7 +1499,7 @@ export function mount(stage, api) {
     roomLights.forEach((l) => (l.intensity = inn ? 16 : 0)); ceilLightM.emissiveIntensity = 1.1 + night * 0.4;
     flagSpot.intensity = night * 70;
     // ground wetness and snow
-    groundMat.roughness = lerp(0.95, 0.4, wet); groundMat.color.setScalar(lerp(1, 0.72, wet));
+    groundMat.roughness = lerp(0.95, 0.4, wet); groundMat.color.setScalar(lerp(1, 0.72, wet)); cityMat.roughness = groundMat.roughness; cityMat.color.copy(groundMat.color);
     puddles.material.opacity = wet * 0.75; puddles.visible = wet > 0.01;
     snowLayer.material.opacity = snowCover * 0.95; snowLayer.visible = snowCover > 0.01;
     mats.snow.opacity = snowCover; growCity(dt, snowCover); cityRT = cityR;
@@ -1443,13 +1516,13 @@ export function mount(stage, api) {
     }
     clouds.instanceMatrix.needsUpdate = true;
     // rain + snow
-    rainMat.uniforms.uTime.value = T; rainMat.uniforms.uCenter.value.copy(controls.target); rainMat.uniforms.uWind.value.set(wx, wz); rainMat.uniforms.uOpacity.value = clamp(W.rain * 1.4, 0, 0.8); rainMat.uniforms.uCount.value = clamp(W.rain * 1.1, 0, 1) * (prefs.q === 'fast' ? 0.4 : 1);
+    rainMat.uniforms.uTime.value = T; rainMat.uniforms.uCenter.value.copy(controls.target); rainMat.uniforms.uWind.value.set(wx, wz); rainMat.uniforms.uOpacity.value = clamp(W.rain * 1.4, 0, 0.8); rainMat.uniforms.uCount.value = clamp(W.rain * 1.1, 0, 1) * (tier === 'lite' ? 0.25 : tier === 'fast' ? 0.45 : 1);
     rain.visible = W.rain > 0.02;
     rainMat.uniforms.uColor.value.set(night > 0.5 ? '#9fb0c6' : '#dbe5f1');
     snowMat.uniforms.uTime.value = T; snowMat.uniforms.uCenter.value.copy(controls.target); snowMat.uniforms.uWind.value.set(wx, wz); snowMat.uniforms.uOpacity.value = clamp(W.snow * 1.3, 0, 0.95); snowMat.uniforms.uCount.value = clamp(W.snow * 1.1, 0, 1);
     snow.visible = W.snow > 0.02;
     boltMat.opacity = flash > 0.35 ? 1 : 0;
-    swayTrees(T, wind);
+    if (tier !== 'lite' || frameN % 4 === 0) swayTrees(T, wind);
     // flag
     { const p = flagGeo.attributes.position, amp = 0.35 + Math.min(wind, 14) * 0.05;
       for (let i = 0; i < p.count; i++) { const x = flagBase[i * 3], y = flagBase[i * 3 + 1], k2 = (x + FW / 2) / FW; p.setZ(i, (Math.sin(x * 0.75 - T * (3 + wind * 0.25) + y * 0.18) + 0.35 * Math.sin(x * 1.9 - T * 5.1)) * amp * k2); }
@@ -1509,7 +1582,7 @@ export function mount(stage, api) {
         const want = gap < 9 ? Math.min(c.v, ahead.base) * 0.8 : c.v;
         c.base = lerp(c.base || c.v, want, dt * 2);
         c.g.position.x += c.base * lane * dt * (1 - W.fog * 0.3 - W.snow * 0.3);
-        if (c.g.position.x > 182) c.g.position.x = -182; if (c.g.position.x < -182) c.g.position.x = 182;
+        if (c.g.position.x > 300) c.g.position.x = -300; if (c.g.position.x < -300) c.g.position.x = 300;
         c.wheels.forEach((w) => (w.rotation.y += c.base * dt * 2.7));
         c.headMatC.emissiveIntensity = 0.3 + lightsOn * 3; c.tailMat.emissiveIntensity = 0.3 + lightsOn * 2; c.beamM.opacity = lightsOn * 0.09;
       });
@@ -1572,6 +1645,7 @@ export function mount(stage, api) {
       else setHTML($h('.mp-src'), isLive ? `<span class="mp-dot"></span>${esc(t('Live'))} · ${esc(t('Weather from Open-Meteo'))}` : `<span class="mp-dot prev"></span>${esc(t('Preview'))}`);
     }
   }
+  stage.querySelector('.mp-empty')?.remove();
   raf = requestAnimationFrame(frame);
 
   const onVis = () => { last = performance.now(); };

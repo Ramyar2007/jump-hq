@@ -113,7 +113,8 @@ export class Runner {
     const run = {
       id: id('run'),
       agent: agentKey,
-      title: agent.name + (lead ? ` · ${lead.business}` : agent.batch ? ` · ${input.lead_ids.length} business${input.lead_ids.length > 1 ? 'es' : ''}` : input.niche ? ` · ${input.niche}, ${input.city}` : ''),
+      title: agent.name + (lead ? ` · ${lead.business}` : agent.batch ? ` · ${input.lead_ids.length} business${input.lead_ids.length > 1 ? 'es' : ''}` : input.text ? ` · ${String(input.text).replace(/\s+/g, ' ').slice(0, 60)}${String(input.text).length > 60 ? '…' : ''}`
+        : input.niche ? ` · ${input.niche}, ${input.city}` : ''),
       hunt_id: input.hunt_id || lead?.hunt_id || (input.lead_ids || []).map((i) => this.store.getLead(i)?.hunt_id).find(Boolean) || null,
       input,
       lead_id: lead?.id || null,

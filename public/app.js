@@ -37,6 +37,7 @@ const IC = {
   plug: '<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
   map: '<path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
 const ic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
@@ -56,10 +57,10 @@ function toast(text, kind = '') {
   $('#toasts').appendChild(el);
   setTimeout(() => el.remove(), kind === 'err' ? 7000 : 3500);
 }
-async function act(btn, fn, done) {
+async function act(btn, fn, done, after) {
   const label = btn?.innerHTML;
   if (btn) { btn.disabled = true; btn.textContent = t('Working…'); }
-  try { const r = await fn(); if (done) toast(done); await refresh(); return r; }
+  try { const r = await fn(); if (done) toast(done); await refresh(); after?.(r); return r; }
   catch (e) { toast(e.message, 'err'); }
   finally { if (btn && document.body.contains(btn)) { btn.disabled = false; btn.innerHTML = label; } }
 }
@@ -176,14 +177,14 @@ function connect() {
     else if (msg.type === 'mode') { S.mode = msg.mode; soon(); }
     else if (msg.type === 'link') { S.link = msg.url; }
     else if (msg.type === 'stats') { S.stats = msg.stats; }
-    else if (msg.type === 'run_event') { (S.events[msg.run_id] ||= []).push(msg.event); liveEvent(msg.run_id, msg.event); }
+    else if (msg.type === 'run_event') { (S.events[msg.run_id] ||= []).push(msg.event); liveEvent(msg.run_id, msg.event); if (route() === 'tasks') { clearTimeout(S.rrT); S.rrT = setTimeout(() => render(true), 400); } }
     else if (msg.type === 'change') { if (msg.kind === 'activity') { S.activity.unshift(msg.payload); liveActivity(msg.payload); } soon(); }
   };
   ws.onclose = () => setTimeout(connect, 2500);
 }
 
 /* ------------------------------------------------------------------ shell */
-const VIEWS = [['home', 'Home', 'home'], ['prospects', 'Businesses', 'users'], ['demos', 'Demos', 'monitor'], ['messages', 'Messages', 'msg'], ['team', 'AI team', 'team'], ['map', 'Live map', 'map'], ['settings', 'Settings', 'gear']];
+const VIEWS = [['home', 'Home', 'home'], ['tasks', 'Tasks', 'spark'], ['prospects', 'Businesses', 'users'], ['demos', 'Demos', 'monitor'], ['messages', 'Messages', 'msg'], ['team', 'AI team', 'team'], ['map', 'Live map', 'map'], ['settings', 'Settings', 'gear']];
 const route = () => (location.hash.replace(/^#\/?/, '') || 'home').split('/')[0];
 const go = (v) => { location.hash = `#/${v}`; };
 
@@ -199,7 +200,7 @@ function render(fromRefresh) {
   S.pending = false;
   const v = route();
   document.body.classList.toggle('on-map', v === 'map');
-  const fn = { map: viewMap, home: viewHome, prospects: viewProspects, demos: viewDemos, messages: viewMessages, team: viewTeam, settings: viewSettings }[v] || viewHome;
+  const fn = { map: viewMap, tasks: viewTasks, home: viewHome, prospects: viewProspects, demos: viewDemos, messages: viewMessages, team: viewTeam, settings: viewSettings }[v] || viewHome;
   const html = fn();
   if (html !== S.lastHtml || v !== S.lastView) { $('#app').innerHTML = html; S.lastHtml = html; S.lastView = v; wire[v]?.(); }
   if (S.lead) renderDrawer();
@@ -257,7 +258,9 @@ function viewHome() {
     <p>${todo.length ? `${todo.length} ${t('things need you. Everything else is handled.')}` : t('You are all caught up.')}</p></div></div>
 
   <div class="grid" style="gap:16px">
+    ${startCard()}
     ${nightCard()}
+    <section class="card askcard"><div class="card-h"><h2>${t('Ask your team')}</h2><a class="small" href="#/tasks">${t('Tasks and schedules')} →</a></div><div class="card-b">${composer('askHome', true)}</div></section>
     <section class="card finder">
       <h2>${t('Find new clients')}</h2>
       <p>${t('Choose what to look for. The team finds the businesses, checks them, and builds free demo websites for the best ones.')}</p>
@@ -319,6 +322,9 @@ function huntCard(h) {
 const wire = {};
 wire.home = () => {
   const todo = needsYou();
+  wireComposer($('#app'));
+  $('[data-hidestart]')?.addEventListener('click', () => { try { localStorage.setItem('hq_start_hidden', '1'); } catch { /* private window */ } S.lastHtml = null; render(); });
+  $$('[data-step]').forEach((b) => (b.onclick = () => startSteps()[+b.dataset.step][2]()));
   $('[data-wake]')?.addEventListener('click', () => setMode('awake'));
   $('[data-seen]')?.addEventListener('click', () => { try { localStorage.setItem('hq_seen_night', S.night.start); } catch {} S.lastHtml = null; render(); });
   $$('[data-todo]').forEach((b) => (b.onclick = () => todo[+b.dataset.todo].run(b)));
@@ -592,7 +598,7 @@ function openReply(l) {
 }
 
 /* ------------------------------------------------------------------- TEAM */
-const STEP = { scout: 1, investigator: 2, opportunity: 3, strategist: 4, reviewer: 5, builder: 6, writer: 7, closer: 8 };
+const STEP = { lead: 0, scout: 1, investigator: 2, opportunity: 3, strategist: 4, reviewer: 5, builder: 6, writer: 7, closer: 8 };
 function viewTeam() {
   const running = S.runs.filter((r) => r.status === 'running');
   const cur = running[0];
@@ -645,14 +651,130 @@ wire.team = () => {
   if (cur && !S.events[cur.id]) req('GET', `/api/runs/${cur.id}/events`).then((ev) => { S.events[cur.id] = ev; if (route() === 'team') { const f = $('#liveFeed'); if (f) { f.innerHTML = ev.map(eventRow).filter(Boolean).join(''); f.scrollTop = f.scrollHeight; } } }).catch(() => {});
 };
 
+/* ------------------------------------------------------------------ TASKS */
+// Ask the team in plain words (the Team lead turns it into work), and repeating tasks on a schedule.
+const EXAMPLES = ['Find 10 dentists in Erbil and build demos for the best 2', 'Which businesses are waiting for me?', 'Build a demo for the business I added last', 'What did the team do today?'];
+const DAYN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const fmt = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[-*] (.+)$/gm, '• $1').replace(/\n/g, '<br>');
+function composer(id, compact) {
+  return `<div class="ask ${compact ? 'compact' : ''}" id="${id}">
+    <div class="ask-in"><textarea rows="${compact ? 1 : 2}" data-askbox placeholder="${t('Tell the team what to do, in your own words…')}" maxlength="2000" dir="auto">${esc(S.askDraft || '')}</textarea>
+      <button class="btn primary" data-ask>${ic('send')}${t('Send to the team')}</button></div>
+    <div class="ask-ex">${EXAMPLES.map((x) => `<button class="chip" data-ex="${esc(t(x))}">${esc(t(x))}</button>`).join('')}</div></div>`;
+}
+function wireComposer(scope = document) {
+  $$('[data-askbox]', scope).forEach((ta) => {
+    ta.oninput = () => { S.askDraft = ta.value; ta.style.height = 'auto'; ta.style.height = `${Math.min(220, ta.scrollHeight)}px`; };
+    ta.onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ta.closest('.ask').querySelector('[data-ask]').click(); };
+  });
+  $$('[data-ex]', scope).forEach((b) => (b.onclick = () => { const ta = b.closest('.ask').querySelector('textarea'); ta.value = b.dataset.ex; S.askDraft = ta.value; ta.focus(); }));
+  $$('[data-ask]', scope).forEach((b) => (b.onclick = () => {
+    const ta = b.closest('.ask').querySelector('textarea'), text = ta.value.trim();
+    if (!text) { ta.focus(); return toast(t('Write what the team should do.'), 'err'); }
+    act(b, () => req('POST', '/api/ask', { text }), t('The Team lead is on it. The answer shows up in Tasks.'), () => { S.askDraft = ''; ta.value = ''; if (route() !== 'tasks') go('tasks'); });
+  }));
+}
+function askThread() {
+  const runs = S.runs.filter((r) => r.agent === 'lead').slice(0, 15);
+  if (!runs.length) return `<div class="empty"><b>${t('No tasks yet')}</b>${t('Ask for anything above: a search, a question, or a demo for a business you know.')}</div>`;
+  return runs.map((r) => {
+    const live = r.status === 'running' ? (S.events[r.id] || []).map(eventText).filter(Boolean).slice(-1)[0] : '';
+    const reply = r.status === 'done' ? r.summary || t('Finished.')
+      : r.status === 'running' ? live || t('Working…')
+        : r.status === 'queued' ? t('Waiting for a free spot in the team…')
+          : r.status === 'failed' ? `${t('Stopped with a problem.')} ${String(r.error || '').split('\n')[0].slice(0, 200)}` : t('Stopped.');
+    return `<div class="pair">
+      <div class="me"><div dir="auto">${esc(r.input?.text || '')}</div><time>${r.input?.schedule_id ? '⏰ ' : ''}${ago(r.created)}</time></div>
+      <div class="them ${r.status}"><span class="who">${ic('team')}${t('Team lead')}${r.status === 'running' ? '<i class="typing"><b></b><b></b><b></b></i>' : ''}</span><div class="body" dir="auto">${fmt(reply)}</div>
+        ${['running', 'queued'].includes(r.status) ? `<button class="btn sm ghost" data-stoprun="${r.id}">${t('Stop')}</button>` : ''}</div></div>`;
+  }).join('');
+}
+const schedDays = (s) => (s.days.length === 7 ? t('Every day') : s.days.join() === '0,1,2,3,4' ? t('Sunday to Thursday') : s.days.map((d) => t(DAYN[d])).join(', '));
+const schedWhat = (s) => (s.kind === 'search' ? `${t('Find')} ${s.count} ${s.niche}, ${s.city}${s.build ? ` · ${t('demos for the best')} ${s.build}` : ''}` : s.text);
+function schedForm() {
+  const f = S.schedForm, m = market(f.market_id || S.config.market_id);
+  const dayBtns = DAYN.map((d, i) => `<button type="button" class="day ${f.days.includes(i) ? 'on' : ''}" data-day="${i}">${t(d)}</button>`).join('');
+  return `<div class="sched-form">
+    <div class="seg" id="sKind"><button class="${f.kind === 'search' ? 'on' : ''}" data-kind="search">${ic('search')}${t('Find businesses')}</button><button class="${f.kind === 'ask' ? 'on' : ''}" data-kind="ask">${ic('msg')}${t('An instruction for the team')}</button></div>
+    ${f.kind === 'search'
+    ? `<div class="form-grid four">
+        <label class="field"><span>${t('Kind of business')}</span><select data-f="niche">${m.niches.map((n) => `<option ${n === f.niche ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+        <label class="field"><span>${t('City')}</span><select data-f="city">${m.cities.map((c) => `<option ${c === f.city ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+        <label class="field"><span>${t('How many')}</span><select data-f="count">${[5, 10, 20, 30].map((n) => `<option ${n === +f.count ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="field"><span>${t('Build demos for the best')}</span><select data-f="build">${[0, 1, 2, 3, 5].map((n) => `<option ${n === +f.build ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>`
+    : `<label class="field"><span>${t('What should the team do?')}</span><textarea data-f="text" rows="3" dir="auto" placeholder="${t('e.g. Every morning, tell me which businesses are waiting for me')}">${esc(f.text || '')}</textarea></label>`}
+    <div class="sched-when"><div class="field"><span>${t('Days')}</span><div class="days">${dayBtns}</div>
+        <div class="quick"><button type="button" data-days="0,1,2,3,4,5,6">${t('Every day')}</button><button type="button" data-days="0,1,2,3,4">${t('Sunday to Thursday')}</button></div></div>
+      <label class="field"><span>${t('Time')}</span><input type="time" data-f="time" value="${esc(f.time)}"></label></div>
+    <div class="row-actions"><button class="btn ghost" id="sCancel">${t('Cancel')}</button><button class="btn primary" id="sSave">${ic('check')}${t('Save the scheduled task')}</button></div></div>`;
+}
+function schedList() {
+  const list = S.config.schedules || [];
+  if (!list.length && !S.schedForm) return `<div class="empty"><b>${t('No scheduled tasks')}</b>${t('Let the team search on its own, for example every Sunday at 9:00.')}</div>`;
+  return list.map((s) => `<div class="sched ${s.enabled ? '' : 'off'}">
+    <label class="tog"><input type="checkbox" data-stog="${s.id}" ${s.enabled ? 'checked' : ''}><span class="sw"></span></label>
+    <div class="grow"><b dir="auto">${esc(schedWhat(s))}</b><span>⏰ ${esc(schedDays(s))} · ${esc(s.time)}${s.last_at ? ` · ${t('last ran')} ${ago(s.last_at)}` : ''}</span></div>
+    <button class="btn sm outline" data-srun="${s.id}">${ic('play')}${t('Run now')}</button>
+    <button class="btn sm ghost" data-sdel="${s.id}" aria-label="${t('Remove')}">${ic('x')}</button></div>`).join('');
+}
+function viewTasks() {
+  return `<div class="page-head"><div><h1>${t('Tasks')}</h1><p>${t('Tell the team what to do in plain words, or set work that repeats on its own.')}</p></div></div>
+  <div class="grid" style="gap:16px">
+    <section class="card"><div class="card-h"><h2>${t('Ask your team')}</h2><span class="sub">${t('Ctrl + Enter to send')}</span></div><div class="card-b">${composer('askMain')}</div></section>
+    <div class="grid cols-2 tasks-cols">
+      <section class="card"><div class="card-h"><h2>${t('Your tasks')}</h2></div><div class="card-b thread">${askThread()}</div></section>
+      <section class="card"><div class="card-h"><h2>${t('Scheduled tasks')}</h2>${S.schedForm ? '' : `<button class="btn sm dark" id="sNew">+ ${t('New scheduled task')}</button>`}</div>
+        <div class="card-b">${S.schedForm ? schedForm() : ''}${schedList()}<p class="muted small" style="margin:12px 0 0">${t('Scheduled tasks run while this computer is on and Jump HQ is open.')}</p></div></section>
+    </div>
+  </div>`;
+}
+wire.tasks = () => {
+  wireComposer($('#app'));
+  for (const r of S.runs.filter((x) => x.agent === 'lead' && x.status === 'running')) if (!S.events[r.id]) req('GET', `/api/runs/${r.id}/events`).then((ev) => { S.events[r.id] = ev; S.lastHtml = null; render(true); }).catch(() => {});
+  $$('[data-stoprun]').forEach((b) => (b.onclick = () => act(b, () => req('POST', `/api/runs/${b.dataset.stoprun}/stop`), t('Stopped.'))));
+  $('#sNew')?.addEventListener('click', () => { const m = market(S.config.market_id); S.schedForm = { kind: 'search', niche: m.niches[0], city: m.cities[0], count: 10, build: 2, days: [0], time: '09:00', text: '' }; render(); });
+  $$('[data-stog]').forEach((c) => (c.onchange = () => act(c, () => req('PUT', `/api/schedules/${c.dataset.stog}`, { enabled: c.checked }), c.checked ? t('Scheduled task on.') : t('Scheduled task paused.'), refresh)));
+  $$('[data-srun]').forEach((b) => (b.onclick = () => act(b, () => req('POST', `/api/schedules/${b.dataset.srun}/run`), t('Started.'), refresh)));
+  $$('[data-sdel]').forEach((b) => (b.onclick = () => { if (confirm(t('Remove this scheduled task?'))) act(b, () => req('DELETE', `/api/schedules/${b.dataset.sdel}`), t('Removed.'), refresh); }));
+  const f = S.schedForm; if (!f) return;
+  const keep = () => { $$('[data-f]').forEach((el) => { f[el.dataset.f] = el.value; }); };
+  $$('[data-kind]').forEach((b) => (b.onclick = () => { keep(); f.kind = b.dataset.kind; render(); }));
+  $$('[data-day]').forEach((b) => (b.onclick = () => { keep(); const d = +b.dataset.day; f.days = f.days.includes(d) ? f.days.filter((x) => x !== d) : [...f.days, d].sort(); render(); }));
+  $$('[data-days]').forEach((b) => (b.onclick = () => { keep(); f.days = b.dataset.days.split(',').map(Number); render(); }));
+  $('#sCancel').onclick = () => { S.schedForm = null; render(); };
+  $('#sSave').onclick = (e) => { keep(); act(e.currentTarget, () => req('POST', '/api/schedules', { ...f, count: +f.count, build: +f.build }), t('Saved. The team will do it on time.'), () => { S.schedForm = null; refresh(); }); };
+};
+
+/* ------------------------------------------------------- GETTING STARTED */
+function startSteps() {
+  let seenMap = false; try { seenMap = !!localStorage.getItem('hq_map_seen'); } catch { /* private window */ }
+  return [
+    ['Find your first businesses', S.leads.length > 0, () => $('#hGo')?.scrollIntoView({ behavior: 'smooth', block: 'center' })],
+    ['Ask your team for something', S.runs.some((r) => r.agent === 'lead'), () => go('tasks')],
+    ['Approve a demo', S.sites.some((x) => x.public_url), () => go('demos')],
+    ['Send your first message', S.approvals.some((a) => a.status === 'sent'), () => go('messages')],
+    ['Set a scheduled task', (S.config.schedules || []).length > 0, () => go('tasks')],
+    ['Watch the team on the Live map', seenMap, () => go('map')],
+  ];
+}
+function startCard() {
+  let hidden = false; try { hidden = localStorage.getItem('hq_start_hidden') === '1'; } catch { /* private window */ }
+  const steps = startSteps(), done = steps.filter((s) => s[1]).length;
+  if (hidden || done === steps.length) return '';
+  return `<section class="card start"><div class="card-h"><h2>${t('Getting started')}</h2><span class="sub">${done} / ${steps.length} ${t('done')}</span><button class="btn sm ghost" data-hidestart>${t('Hide')}</button></div>
+    <div class="start-bar"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
+    <div class="start-steps">${steps.map(([l, ok], i) => `<button class="step ${ok ? 'ok' : ''}" data-step="${i}"><span class="tick">${ok ? ic('check') : i + 1}</span>${t(l)}</button>`).join('')}</div></section>`;
+}
+
 /* ---------------------------------------------------------------- LIVE MAP */
 // The 3D street (public/map.js) loads only when this page opens; it stops by itself when the page closes.
 function viewMap() {
-  return `<div class="mapview"><div class="map-stage" id="mapStage"><div class="mp-empty">${t('Loading the map…')}</div></div></div>`;
+  return `<div class="mapview"><div class="map-stage" id="mapStage"><div class="mp-empty">${t('Building Pozaka Street…')}</div></div></div>`;
 }
 const fullEvents = new Set();
 wire.map = async () => {
   const stage = $('#mapStage');
+  try { localStorage.setItem('hq_map_seen', '1'); } catch { /* private window */ }
   try {
     await Promise.race([Promise.all(['800 40px "Noto Sans Arabic"', '800 40px "Plus Jakarta Sans"'].map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 2500))]);
     const m = await import('/map.js');

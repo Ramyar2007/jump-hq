@@ -135,6 +135,18 @@ server.tool('hq_request_approval', 'Queue something for the owner to approve. Th
   body: z.string().optional(),
 }, wrap((a) => call('POST', '/approvals', a)));
 
+server.tool('hq_start_search', 'Start a search for new businesses. The whole team then works through it on its own (check, score, plan, review, build demos).', {
+  niche: z.string().describe('Kind of business, e.g. restaurants, beauty salons, dentists'),
+  city: z.string().describe('City, e.g. Sulaymaniyah, Erbil'),
+  count: z.number().int().min(1).max(30).optional().describe('How many businesses to find (default 10)'),
+  build: z.number().int().min(0).max(5).optional().describe('Most demos to build (default 2)'),
+}, wrap((a) => call('POST', '/hunts', a)));
+
+server.tool('hq_queue_job', 'Hand one business to a specialist. The work continues on its own after that step.', {
+  agent: z.enum(['investigator', 'opportunity', 'strategist', 'reviewer', 'builder', 'writer']),
+  lead_id: z.string(),
+}, wrap((a) => call('POST', '/jobs', a)));
+
 server.tool('hq_settings', 'Read the agency profile: company, market, offer and pricing.', {},
   wrap(() => call('GET', '/settings')));
 

@@ -8,6 +8,7 @@ import { agentName, money, needsYou } from '@/lib/logic';
 import { Btn, Card, Empty, H, Row, Screen, T, clock, useRtl } from '@/components/ui';
 import { ModeCard, NightReport } from '@/components/ModeCard';
 import { AddBusiness } from '@/components/AddBusiness';
+import { AskTeam } from '@/components/AskTeam';
 
 function Chips({ items, value, onChange }: { items: string[]; value: string; onChange: (v: string) => void }) {
   const rtl = useRtl();
@@ -59,6 +60,7 @@ export default function Home() {
       {!online ? <Card style={{ backgroundColor: C.badSoft }}><Row><WifiOff color={C.bad} size={18} /><T style={{ flex: 1 }} color={C.bad}>{t('Cannot reach your computer. Is Jump HQ running?')}</T></Row></Card> : null}
       <ModeCard />
       <NightReport />
+      <AskTeam />
 
       <Card style={{ padding: 0, gap: 0 }}>
         <Row style={{ padding: 16, paddingBottom: 6, justifyContent: 'space-between' }}><H>{t('Needs you')}</H>{todo.length ? <T color={C.muted} size={13}>{`${todo.length} ${t('to do')}`}</T> : null}</Row>

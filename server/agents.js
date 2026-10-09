@@ -24,6 +24,32 @@ Hard rules (never break these):
 const LEADS = (ctx, pick) => JSON.stringify(ctx.leads.map(pick), null, 2);
 
 export const AGENTS = {
+  lead: {
+    name: 'Team lead',
+    title: 'Turns your words into work',
+    blurb: 'Reads what you ask in plain words, answers questions about your businesses, and hands the work to the right specialists.',
+    tools: ['WebSearch', 'WebFetch'],
+    fields: [{ key: 'text', label: 'What should the team do?', type: 'textarea' }],
+    prompt: (cfg, input) => `${SHARED(cfg)}
+
+ROLE: Team lead. The owner wrote this to the team:
+<<<
+${String(input.text || '').slice(0, 2000)}
+>>>
+
+What you can do:
+- Answer questions about the businesses and the work so far: hq_list_leads, hq_get_lead. Then answer in your final message.
+- Start a search for new businesses: hq_start_search with the kind of business, the city, how many (max 30) and how many demos to build at most (max 5). The full team then works through it on its own. If the owner is vague, pick sensible cities and kinds from hq_settings.
+- Hand one known business to a specialist: hq_queue_job with agent ("investigator", "opportunity", "strategist", "reviewer", "builder", "writer") and the lead_id. The work then continues on its own. The writer only works once the demo is approved and online.
+- Add a business the owner names: hq_add_lead with the public details they gave (at least one link or phone), then hq_queue_job with "investigator" (to check it first) or "builder" (if they asked for a demo now).
+- Update a business (note, stage): hq_update_lead.
+You cannot send messages, publish demos or approve anything. If that is what the owner wants, tell them which page to open (Demos or Messages).
+If the request is unclear, or has nothing to do with finding and winning clients, do nothing and ask one short question.
+Be quick and use few steps.
+
+Finish with your reply to the owner in ${langName(cfg.ui_language)}: what you did and what happens next, in at most 6 short plain lines.`,
+  },
+
   scout: {
     name: 'Scout',
     title: 'Finds local businesses',

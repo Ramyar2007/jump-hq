@@ -82,6 +82,9 @@ export const DEFAULTS = {
     searches: [], // night plan: [{ niche, city, count, build, market_id }]
     second_opinion: true, // in Awake mode the Judge still reviews and shows its verdict
   },
+  // Repeating tasks: { id, name, enabled, days [0-6, Sunday = 0], time 'HH:MM', kind 'search' | 'ask',
+  //   niche, city, count, build (search) or text (ask), last (when it last ran) }
+  schedules: [],
   connections: {
     telegram: { enabled: false, token: '', chat_id: '' },
     phone: { public_link: true },
