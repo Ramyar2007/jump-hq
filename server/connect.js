@@ -3,6 +3,7 @@
 import { spawn, execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { CODEX, codexEnv } from './codex.js';
 
 const exists = (cmd) => new Promise((resolve) => execFile(process.platform === 'win32' ? 'where' : 'which', [cmd], { windowsHide: true }, (e, out) => resolve(e ? '' : String(out).split(/\r?\n/)[0].trim())));
 
@@ -98,6 +99,13 @@ export class Beacon {
 export async function claudeStatus() {
   const bin = process.env.CLAUDE_BIN || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe') : 'claude');
   return new Promise((resolve) => execFile(bin, ['--version'], { windowsHide: true, timeout: 15000 }, (e, out) => resolve(e ? { ok: false, detail: 'Claude Code is not installed or not signed in on this computer.' } : { ok: true, detail: String(out).trim() })));
+}
+
+export async function codexStatus() {
+  return new Promise((resolve) => execFile(CODEX, ['login', 'status'], { env: codexEnv(), windowsHide: true, timeout: 15000 }, (e, out, err) => {
+    const detail = String(out || err || '').trim();
+    resolve(e ? { ok: false, detail: detail || 'Codex CLI is not installed or not signed in on this computer.' } : { ok: true, detail: detail || 'Signed in to Codex on this computer.' });
+  }));
 }
 
 export async function githubStatus() {

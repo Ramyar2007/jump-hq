@@ -20,14 +20,18 @@ if not exist "node_modules\express" (
   call npm install --omit=dev --no-audit --no-fund
 )
 
-rem 3. The AI team runs on Claude Code. Without it the dashboard still opens and Settings shows how to connect it.
+rem 3. The AI team can use Claude Code or Codex CLI. Without either, the dashboard still opens.
 where claude >nul 2>&1
-if errorlevel 1 if not exist "%USERPROFILE%\.local\bin\claude.exe" (
+if not errorlevel 1 goto brain_ready
+if exist "%USERPROFILE%\.local\bin\claude.exe" goto brain_ready
+where codex >nul 2>&1
+if errorlevel 1 (
   echo.
-  echo Note: Claude Code is not installed yet, so the AI team cannot work.
+  echo Note: Claude Code and Codex CLI are not installed yet, so the AI team cannot work.
   echo Open Settings, then Connections, then "AI brain" in the dashboard for the steps.
   echo.
 )
+:brain_ready
 
 echo Starting Jump HQ on http://localhost:4777 ...
 echo Keep this window open. The AI team, schedules and the phone link run while it is open.

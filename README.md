@@ -59,7 +59,7 @@ Deploy: `Dockerfile` + `render.yaml` (Render Blueprint). Set `ANTHROPIC_API_KEY`
 
 ## Run it on your own computer
 
-Needs Node 20+, and Claude Code installed and signed in on the computer (the agents run on the owner's Claude plan).
+Needs Node 20+ and a signed-in local AI CLI. In **Settings → Connections → AI brain**, choose **Claude Code** or **Codex CLI**. Each option uses the account already signed in on this computer; Codex jobs run in the workspace-write sandbox and use only Jump HQ's local MCP connection.
 
 Double-click **Start Jump HQ.bat**. On a new computer it checks for Node.js (opens the download page if missing), installs what it needs the first time, and opens the dashboard. Or by hand:
 
@@ -77,7 +77,7 @@ Phone app: `cd app && npm install && npx expo start`, or install the APK built w
 ```
 server/
   index.js     dashboard API, ask + scheduled tasks, phone pairing (device keys), Sleep mode, night plan, connections, WebSocket
-  runner.js    starts each agent as a headless Claude Code session with a narrow tool set, queue + usage limits
+  runner.js    starts each agent with the selected Claude Code or Codex CLI provider, queue + usage limits
   agents.js    the nine agents' prompts (Team lead + eight specialists) (owner-facing text in the owner's language)
   judge.js     hard rules + independent AI review; approve / revise / hold
   connect.js   Telegram alerts, Cloudflare tunnel, link beacon, health checks
@@ -88,4 +88,4 @@ public/        dashboard (vanilla JS, no build step), map.js = the Live map, i18
 app/           phone app (Expo SDK 57, expo-router)
 ```
 
-**Safety:** agents can't send, publish, use a terminal or read files outside their folder. Outbound messages only become approval requests. The Team lead can start searches and queue specialists, but never send, publish or approve. The agent API is blocked from the public link. Phones get their own revocable keys. Five wrong passwords lock sign-in for a minute. There's a daily send cap and an opt-out line in every message.
+**Safety:** agents can't send or publish directly. Outbound messages only become approval requests. Claude runs with a narrow tool set; Codex runs in the workspace-write sandbox with only Jump HQ's local MCP connection. The Team lead can start searches and queue specialists, but never send, publish or approve. The agent API is blocked from the public link. Phones get their own revocable keys. Five wrong passwords lock sign-in for a minute. There's a daily send cap and an opt-out line in every message.

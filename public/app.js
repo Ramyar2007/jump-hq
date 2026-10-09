@@ -1,4 +1,4 @@
-// Jump HQ: find local businesses that need a website, prove it with a free demo, win them as clients.
+// Jump HQ: an AI team that finds clients (free sample + first message) and runs the owner's social media (Grow).
 // No framework: one state object, hash routes, re-render on change. Live updates over a WebSocket.
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -11,6 +11,7 @@ const S = { mode: 'awake', night: null, link: '', conns: null, setTab: 'business
 
 /* ------------------------------------------------------------------ icons */
 const IC = {
+  mega: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a3 3 0 0 1 0 6"/><path d="M18 6a7 7 0 0 1 0 12"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
@@ -142,7 +143,7 @@ async function boot() {
 
 function renderAuth(setup) {
   root.innerHTML = `<div class="auth"><div class="auth-side"><div class="logo"><i>J</i>Jump</div>
-      <div><h2>${t('Find local businesses that need a website, and win them as clients.')}</h2><p>${t('An AI team searches, checks and scores businesses, builds free demo websites for the best ones, and writes the first message. You approve everything.')}</p></div><span class="small" style="color:#8394b5">${t('jumpagency.org')}</span></div>
+      <div><h2>${t('An AI team that finds your clients and runs your social media.')}</h2><p>${t('It finds clients who need what you sell, makes each one a free sample, writes the first message, and posts your content every day. You approve everything.')}</p></div><span class="small" style="color:#8394b5">${t('jumpagency.org')}</span></div>
     <div class="auth-main"><div class="card"><h1>${setup ? 'Welcome' : 'Welcome back'}</h1>
       <p>${setup ? 'Create a password to protect your workspace.' : 'Sign in to your workspace.'}</p>
       <form id="authf"><label class="field"><span>${t('Password')}</span><input type="password" id="pw" autocomplete="${setup ? 'new-password' : 'current-password'}" required minlength="${setup ? 8 : 1}"></label>
@@ -159,7 +160,7 @@ async function refresh(first) {
   if (refreshing) return refreshing;
   refreshing = req('GET', '/api/bootstrap').then((d) => {
     if (d.config.ui_language !== S.lang) { S.lang = d.config.ui_language; setLang(S.lang); S.lastHtml = null; if ($('#app')) root.innerHTML = ''; }
-    Object.assign(S, { mode: d.mode, night: d.night, link: d.link, config: d.config, agents: d.agents, leads: d.leads, approvals: d.approvals, runs: d.runs, sites: d.sites, activity: d.activity, hunts: d.hunts || [], runner: d.runner, stats: d.stats });
+    Object.assign(S, { mode: d.mode, night: d.night, link: d.link, config: d.config, agents: d.agents, leads: d.leads, approvals: d.approvals, runs: d.runs, sites: d.sites, activity: d.activity, hunts: d.hunts || [], posts: d.posts || [], platforms: d.platforms || {}, runner: d.runner, stats: d.stats });
     S.market ||= d.config.market_id;
     if (!first) render(true);
   }).finally(() => { refreshing = null; });
@@ -185,7 +186,7 @@ function connect() {
 }
 
 /* ------------------------------------------------------------------ shell */
-const VIEWS = [['home', 'Home', 'home'], ['tasks', 'Tasks', 'spark'], ['prospects', 'Businesses', 'users'], ['demos', 'Demos', 'monitor'], ['messages', 'Messages', 'msg'], ['team', 'AI team', 'team'], ['map', 'Live map', 'map'], ['settings', 'Settings', 'gear']];
+const VIEWS = [['home', 'Home', 'home'], ['tasks', 'Tasks', 'spark'], ['prospects', 'Businesses', 'users'], ['demos', 'Demos', 'monitor'], ['messages', 'Messages', 'msg'], ['grow', 'Grow', 'mega'], ['team', 'AI team', 'team'], ['map', 'Live map', 'map'], ['settings', 'Settings', 'gear']];
 const route = () => (location.hash.replace(/^#\/?/, '') || 'home').split('/')[0];
 const go = (v) => { location.hash = `#/${v}`; };
 
@@ -201,7 +202,7 @@ function render(fromRefresh) {
   S.pending = false;
   const v = route();
   document.body.classList.toggle('on-map', v === 'map');
-  const fn = { map: viewMap, tasks: viewTasks, home: viewHome, prospects: viewProspects, demos: viewDemos, messages: viewMessages, team: viewTeam, settings: viewSettings }[v] || viewHome;
+  const fn = { map: viewMap, tasks: viewTasks, home: viewHome, prospects: viewProspects, demos: viewDemos, messages: viewMessages, grow: viewGrow, team: viewTeam, settings: viewSettings }[v] || viewHome;
   const html = fn();
   if (html !== S.lastHtml || v !== S.lastView) { $('#app').innerHTML = html; S.lastHtml = html; S.lastView = v; wire[v]?.(); }
   if (S.lead) renderDrawer();
@@ -212,7 +213,7 @@ function renderTop() {
   if (!$('#nav')) return;
   const msgs = S.approvals.filter((a) => a.status === 'pending' || (a.status === 'approved' && ['email', 'whatsapp'].includes(a.type))).length;
   const demos = S.leads.filter((l) => l.stage === 'demo_built' && siteOf(l) && !siteOf(l).public_url).length;
-  const counts = { messages: msgs, demos };
+  const counts = { messages: msgs, demos, grow: (S.posts || []).filter((p) => p.status === 'pending').length };
   $('#nav').innerHTML = VIEWS.map(([k, n, i]) => `<a href="#/${k}" class="navl ${route() === k ? 'on' : ''}">${ic(i)}${t(n)}${counts[k] ? `<span class="count">${counts[k]}</span>` : ''}</a>`).join('');
   const r = S.runner || {};
   const run = S.runs.find((x) => x.status === 'running');
@@ -507,6 +508,73 @@ function wireJudge(scope = document) {
     toast(t("The Judge's version is in the box. Read it, then approve."));
   }));
 }
+
+/* ------------------------------------------------------------------- GROW */
+// Grow mode: the Content creator makes posts and short videos for the owner's own pages.
+const POST_TABS = [['pending', 'To approve', (p) => ['making', 'judging', 'pending', 'failed'].includes(p.status)], ['approved', 'Scheduled', (p) => ['approved', 'posting', 'ready'].includes(p.status)], ['posted', 'Posted', (p) => p.status === 'posted'], ['discarded', 'Discarded', (p) => p.status === 'discarded']];
+const when = (iso) => new Date(iso).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const localInput = (iso) => { const d = new Date(iso); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); };
+function postMedia(p) {
+  if (!p.media) return `<div class="post-ph">${p.status === 'failed' ? esc(p.error || t('Could not draw this post.')) : t('Designing…')}</div>`;
+  return p.format === 'video'
+    ? `<video src="/p/${esc(p.media)}" ${p.poster ? `poster="/p/${esc(p.poster)}"` : ''} controls playsinline muted loop preload="metadata"></video>`
+    : `<img src="/p/${esc(p.media)}" alt="${esc(p.title)}" loading="lazy">`;
+}
+function viewGrow() {
+  const posts = S.posts || [];
+  const tab = POST_TABS.find((x) => x[0] === S.postTab) || POST_TABS[0];
+  const list = posts.filter(tab[2]);
+  const pl = S.platforms || {};
+  const making = S.runs.filter((r) => r.agent === 'creator' && ['running', 'queued'].includes(r.status));
+  const f = S.growForm ||= { brief: '', count: 5, mix: 'mix' };
+  const chip = (on, name) => `<span class="badge ${on === true ? 'good' : ''}">${name}${on === true ? '' : on === 'tap' ? ` · ${t('one tap')}` : ` · ${t('not connected')}`}</span>`;
+  return `<div class="page-head"><div><h1>${t('Grow')}</h1><p>${t('Your own posts and short videos, made by the team, checked by the Judge, posted on time.')}</p></div></div>
+  <div class="card grow-make">
+    <label class="field"><span>${t('What should the posts be about?')}</span><textarea id="gBrief" rows="2" dir="auto" placeholder="${t('e.g. our new AI video ad offer, a before and after, a tip for online shops')}">${esc(f.brief)}</textarea></label>
+    <div class="grow-row"><div class="seg" id="gMix">${[['mix', 'Pictures and videos'], ['images', 'Pictures'], ['videos', 'Videos']].map(([k, n]) => `<button data-mix="${k}" class="${f.mix === k ? 'on' : ''}">${t(n)}</button>`).join('')}</div>
+      <label class="grow-count">${t('Posts')} <select id="gCount">${[3, 5, 7, 10].map((n) => `<option ${n === +f.count ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <span class="grow"></span><button class="btn primary" id="gMake">${ic('spark')}${t('Make posts')}</button></div>
+    <div class="grow-row plats"><span class="muted small">${t('Posts go to')}:</span>${chip(pl.facebook, 'Facebook')}${chip(pl.telegram, 'Telegram')}${chip(pl.instagram, 'Instagram')}${chip(pl.tiktok, 'TikTok')}<a class="small" href="#/settings" id="gConnect">${t('Connect pages')}</a></div>
+  </div>
+  ${making.length ? `<div class="now" style="margin:16px 0 0"><span class="dot busy"></span>${t('The Content creator is designing your posts. They show up here in a few minutes.')}</div>` : ''}
+  <div class="toolbar" style="margin-top:16px"><div class="seg">${POST_TABS.map(([k, n, fn]) => `<button data-pt="${k}" class="${tab[0] === k ? 'on' : ''}">${t(n)}<em>${posts.filter(fn).length}</em></button>`).join('')}</div></div>
+  ${list.length ? `<div class="posts">${list.map((p) => `<article class="card post" data-p="${p.id}">
+    <div class="post-media ${p.format}">${postMedia(p)}<span class="badge">${p.format === 'video' ? t('Video') : t('Picture')}</span></div>
+    <div class="post-info"><div class="post-top"><b dir="auto">${esc(p.title || `#${p.n}`)}</b><span class="muted small">${when(p.scheduled_at)}</span></div>
+    ${p.status === 'judging' ? judgeBox(null, { judging: true }) : ['pending', 'failed'].includes(p.status) ? judgeBox(p.judge, {}) : p.auto ? `<div class="judge good slim"><span class="j-ic">${ic('scale')}</span><div><b>${t('Approved by the Judge while you slept')}</b></div></div>` : ''}
+    ${p.status === 'pending' ? `<label class="field"><span>${t('Caption')}</span><textarea data-k="caption" dir="auto" rows="4">${esc(p.caption)}</textarea></label>
+      <label class="field"><span>${t('Post on')}</span><input data-k="when" type="datetime-local" value="${localInput(p.scheduled_at)}"></label>`
+    : `<p class="post-cap" dir="auto">${esc(p.caption)}</p>`}
+    <p class="post-tags" dir="auto">${esc((p.hashtags || []).join(' '))}</p>
+    ${p.status === 'posted' ? `<div class="row-actions">${Object.entries(p.results || {}).map(([k, r]) => (r.ok ? (r.url ? `<a class="btn sm outline" href="${esc(r.url)}" target="_blank" rel="noopener">${ic('ext')}${k}</a>` : `<span class="badge good">${k}</span>`) : `<span class="badge bad" title="${esc(r.error)}">${k}: ${t('failed')}</span>`)).join('')}</div>` : ''}
+    <div class="row-actions">
+      ${p.status === 'pending' ? `<button class="btn primary" data-pok>${ic('check')}${t('Approve')}</button>` : ''}
+      ${['approved', 'ready', 'pending'].includes(p.status) && p.media ? `<button class="btn ${p.status === 'pending' ? '' : 'primary'}" data-pnow>${ic('send')}${t('Post now')}</button>` : ''}
+      ${p.media ? `<a class="btn ghost" href="/p/${esc(p.media)}" download>${t('Download')}</a><button class="btn ghost" data-pcopy>${ic('copy')}${t('Copy caption')}</button>` : ''}
+      <span class="grow"></span>${!['posted', 'discarded'].includes(p.status) ? `<button class="btn ghost danger" data-pno>${t('Discard')}</button>` : ''}
+    </div>
+    ${p.status === 'ready' ? `<p class="muted small" style="margin:0">${t('No page is connected yet: download it and post it, or connect your pages and it posts itself.')}</p>` : ''}
+    </div></article>`).join('')}</div>`
+    : `<div class="card empty"><b>${t('No posts here yet')}</b>${tab[0] === 'pending' ? t('Write what the posts should be about and press Make posts.') : ''}</div>`}`;
+}
+wire.grow = () => {
+  const f = S.growForm;
+  $('#gBrief')?.addEventListener('input', (e) => { f.brief = e.target.value; });
+  $('#gCount')?.addEventListener('change', (e) => { f.count = +e.target.value; });
+  $('#gConnect')?.addEventListener('click', () => { S.setTab = 'connections'; });
+  $$('[data-mix]').forEach((b) => (b.onclick = () => { f.mix = b.dataset.mix; render(); }));
+  $$('[data-pt]').forEach((b) => (b.onclick = () => { S.postTab = b.dataset.pt; render(); }));
+  $('#gMake')?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', '/api/posts/make', f), t('The Content creator is on it.')));
+  $$('[data-p]').forEach((card) => {
+    const p = (S.posts || []).find((x) => x.id === card.dataset.p);
+    if (!p) return;
+    const val = (k) => $(`[data-k="${k}"]`, card)?.value;
+    $('[data-pok]', card)?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', `/api/posts/${p.id}/approve`, { caption: val('caption'), scheduled_at: val('when') ? new Date(val('when')).toISOString() : undefined }), t('Approved. It goes out on time.')));
+    $('[data-pnow]', card)?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', `/api/posts/${p.id}/post-now`), t('Done.')));
+    $('[data-pno]', card)?.addEventListener('click', (e) => act(e.currentTarget, () => req('POST', `/api/posts/${p.id}/discard`), t('Discarded.')));
+    $('[data-pcopy]', card)?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(`${p.caption}\n\n${(p.hashtags || []).join(' ')}`); toast(t('Copied.')); } catch { toast(t('Could not copy.'), 'err'); } });
+  });
+};
 
 /* --------------------------------------------------------------- MESSAGES */
 function viewMessages() {
@@ -909,18 +977,20 @@ function connCard(key, icon, title, desc, status, body, steps) {
   return `<section class="card conn"><div class="conn-h"><span class="conn-ic">${ic(icon)}</span><div class="grow"><h2>${t(title)}</h2><p>${t(desc)}</p></div><span class="badge ${st[0]}">${st[1]}</span></div>
     ${body ? `<div class="card-b" style="padding-top:4px">${body}</div>` : ''}
     ${steps ? `<details class="steps"><summary>${t('How to connect')}</summary><ol>${steps.map((x) => `<li>${t(x)}</li>`).join('')}</ol></details>` : ''}
-    <div class="conn-f"><button class="btn sm outline" data-test="${key}">${t('Test')}</button>${['email', 'telegram', 'brain', 'whatsapp'].includes(key) ? `<button class="btn sm primary" data-save>${t('Save')}</button>` : ''}</div></section>`;
+    <div class="conn-f"><button class="btn sm outline" data-test="${key}">${t('Test')}</button>${['email', 'telegram', 'brain', 'whatsapp', 'social'].includes(key) ? `<button class="btn sm primary" data-save>${t('Save')}</button>` : ''}</div></section>`;
 }
 function setConnections() {
   const c = S.config, k = S.conns;
   if (!k) { loadConns(); return `<div class="card empty"><b>${t('Checking your connections…')}</b></div>`; }
+  const provider = c.limits.provider === 'codex' ? 'codex' : 'claude';
   const models = [['sonnet', 'Claude Sonnet (best balance)'], ['opus', 'Claude Opus (smartest, slower)'], ['haiku', 'Claude Haiku (fastest, cheapest)']];
   return `<div class="conns">
-  ${connCard('brain', 'team', 'AI brain', 'The model your team thinks with. Runs on your Claude plan on this computer.', k.brain.ok, `<div class="form-grid"><label class="field"><span>${t('Model')}</span><select data-p="limits.model">${models.map(([v, n]) => `<option value="${v}" ${c.limits.model === v ? 'selected' : ''}>${t(n)}</option>`).join('')}</select></label><div class="field"><span>${t('Status')}</span><div class="muted" style="padding-top:9px">${esc(k.brain.detail)}</div></div></div>`, ['Install Claude Code on this computer.', 'Open a terminal and run: claude', 'Sign in with your Claude account. Done.'])}
+  ${connCard('brain', 'team', 'AI brain', 'Choose which local AI CLI runs your team and Judge.', k.brain.ok, `<div class="form-grid"><label class="field"><span>${t('Provider')}</span><select data-p="limits.provider"><option value="claude" ${provider === 'claude' ? 'selected' : ''}>${t('Claude Code')}</option><option value="codex" ${provider === 'codex' ? 'selected' : ''}>${t('Codex CLI')}</option></select></label>${provider === 'claude' ? `<label class="field"><span>${t('Model')}</span><select data-p="limits.model">${models.map(([v, n]) => `<option value="${v}" ${c.limits.model === v ? 'selected' : ''}>${t(n)}</option>`).join('')}</select></label>` : `<div class="field"><span>${t('Model')}</span><div class="muted" style="padding-top:9px">${t('Uses the Codex CLI standard model and local login.')}</div></div>`}<div class="field" style="grid-column:1/-1"><span>${t('Status')}</span><div class="muted" style="padding-top:9px">${esc(k.brain.detail)}</div></div></div>`, provider === 'codex' ? ['Install Codex CLI on this computer.', 'Open a terminal and run: codex login', 'Press Test to check your Codex sign-in.'] : ['Install Claude Code on this computer.', 'Open a terminal and run: claude', 'Sign in with your Claude account. Done.'])}
   ${connCard('email', 'send', 'Email sending', 'Send approved emails from your own address, by itself.', k.email.ok ? true : 'manual', `<div class="form-grid"><label class="field" style="grid-column:1/-1"><span>${t('When an email is approved')}</span><select data-p="outreach.sender"><option value="manual" ${c.outreach.sender === 'manual' ? 'selected' : ''}>${t('I send it myself from my mailbox')}</option><option value="smtp" ${c.outreach.sender === 'smtp' ? 'selected' : ''}>${t('Send it automatically')}</option></select></label>
     ${fld('Mail server', 'smtp.host', c.smtp.host)}${fld('Port', 'smtp.port', c.smtp.port, 'number')}${fld('Username', 'smtp.user', c.smtp.user)}${fld('Password', 'smtp.pass', c.smtp.pass, 'password')}</div>`, ['Zoho: Settings → Security → App passwords → create one.', 'Mail server smtp.zoho.com, port 465.', 'Username = your full email, Password = the app password. Press Test.'])}
   ${connCard('whatsapp', 'msg', 'WhatsApp', 'Approved WhatsApp messages open in your own WhatsApp, ready to send with one tap. Nothing is sent from a stranger number.', true, `<div class="form-grid">${fld('Country code for local numbers', 'markets.krd.phone_prefix', market('krd').phone_prefix)}</div>`, null)}
   ${connCard('telegram', 'alert', 'Telegram alerts', 'Get a ping on your phone when something needs you, and a morning report after Sleep mode.', k.telegram.ok, `<div class="form-grid">${fld('Bot token', 'connections.telegram.token', c.connections.telegram.token, 'password')}${fld('Chat ID (found by itself)', 'connections.telegram.chat_id', c.connections.telegram.chat_id)}</div>`, ['In Telegram, open @BotFather and send /newbot.', 'Pick a name. Copy the token it gives you and paste it here.', 'Open your new bot and press Start.', 'Press Save, then Test. The chat ID is found by itself.'])}
+  ${connCard('social', 'mega', 'Social pages (Grow mode)', 'Where approved posts and videos go by themselves. Instagram and TikTok: download and post in one tap.', k.social?.ok, `<div class="form-grid">${fld('Facebook Page ID', 'connections.social.fb_page_id', c.connections.social?.fb_page_id || '')}${fld('Facebook Page access token', 'connections.social.fb_token', c.connections.social?.fb_token || '', 'password')}${fld('Telegram channel (e.g. @yourchannel)', 'connections.social.telegram_channel', c.connections.social?.telegram_channel || '')}</div>`, ['Facebook: open your Page, then About → Page transparency to find the Page ID.', 'Get a Page access token from Meta for Developers (Graph API Explorer, permission pages_manage_posts). Paste both here.', 'Telegram: add your Telegram alerts bot to your channel as an admin, then write the channel name here.', 'Press Save, then Test.'])}
   ${connCard('publish', 'globe', 'Demo publishing', 'Approved demos go online for free on GitHub Pages, so businesses can open them.', k.publish.ok, `<div class="muted">${esc(k.publish.detail)} ${t('Repository')}: <b>${esc(k.publish.repo)}</b></div>`, ['Sign in to GitHub once with git on this computer.', 'The first publish creates the repository by itself.'])}
   ${connCard('phone', 'phone', 'Phone app', 'Control everything from your phone, anywhere, through a private secure link.', k.phone.ok ? true : k.phone.status === 'starting' ? 'starting' : false, `<div class="muted">${k.phone.url ? `${t('Public link')}: <b>${esc(k.phone.url)}</b><br>` : ''}${k.phone.devices} ${t('phones paired')}. <a href="#/settings" data-st-go="phone">${t('Pair a phone')}</a></div>`, null)}
   </div>`;
@@ -999,7 +1069,7 @@ wire.settings = () => {
   wirePlan();
   $$('[data-test]').forEach((b) => (b.onclick = async () => {
     const which = b.dataset.test;
-    if (['email', 'telegram'].includes(which)) await req('PUT', '/api/settings', collect(b.closest('.conn'))).catch(() => {});
+    if (['brain', 'email', 'telegram', 'social'].includes(which)) await req('PUT', '/api/settings', collect(b.closest('.conn'))).catch(() => {});
     const r = await act(b, () => req('POST', '/api/connections/test', { which }));
     if (r?.message) toast(r.message);
     S.conns = null; loadConns();

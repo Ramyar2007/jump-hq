@@ -5,3 +5,8 @@ sites/
 .backup-v1/
 cloud-data/
 PUBLIC_LINK.txt
+.env
+.env.*
+!.env.example
+*.pem
+*.key

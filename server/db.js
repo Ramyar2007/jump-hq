@@ -11,6 +11,7 @@ const EMPTY = {
   runs: [],
   activity: [],
   sites: [],
+  posts: [],
   meta: { created: new Date().toISOString() },
 };
 

@@ -7,3 +7,9 @@ cloud-data
 .backup-v1
 .git
 *.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+PUBLIC_LINK.txt

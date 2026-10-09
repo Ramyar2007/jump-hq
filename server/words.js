@@ -39,6 +39,10 @@ const W = {
   failed: ['{a} ran into a problem with {w}', '{a} تووشی کێشە بوو لە {w}', 'واجه {a} مشكلة في {w}'],
   stopped: ['{a} was stopped on {w}', '{a} وەستێنرا لە {w}', 'تم إيقاف {a} في {w}'],
   search_done: ['Search finished: {n} {niche} in {city} checked, {d} demos ready for you.', 'گەڕان تەواو بوو: {n} {niche} لە {city} پشکنران، {d} دیمۆ بۆت ئامادەن.', 'انتهى البحث: تم فحص {n} {niche} في {city}، {d} نماذج جاهزة لك.'],
+  grow_none: ['The Content creator finished but made no posts.', 'دروستکەری ناوەڕۆک تەواو بوو بەڵام هیچ پۆستێکی دروست نەکرد.', 'انتهى صانع المحتوى لكنه لم يصنع أي منشور.'],
+  grow_made: ['{n} new posts are ready. The Judge is checking them.', '{n} پۆستی نوێ ئامادەن. دادوەر دەیانپشکنێت.', '{n} منشورات جديدة جاهزة. الحَكَم يفحصها.'],
+  grow_posted: ['Posted "{t}" on {w}.', '"{t}" بڵاوکرایەوە لە {w}.', 'تم نشر "{t}" على {w}.'],
+  grow_post_fail: ['Could not post "{t}".', 'نەتوانرا "{t}" بڵاو بکرێتەوە.', 'تعذّر نشر "{t}".'],
 };
 const IDX = { en: 0, ckb: 1, ar: 2 };
 export const words = (config) => (key, p = {}) => {

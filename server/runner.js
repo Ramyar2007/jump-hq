@@ -6,6 +6,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { AGENTS, pipeline, budget } from './agents.js';
 import { id, slugify } from './db.js';
+import { CODEX, codexEnv } from './codex.js';
 
 const CLAUDE = process.env.CLAUDE_BIN || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe') : 'claude');
 
@@ -21,6 +22,7 @@ export class Runner {
     this.paused = false;
     this.pauseReason = '';
     this.usage = store.data.meta.usage || null;
+    this.dataDir = dataDir;
     this.runsDir = path.join(dataDir, 'runs');
     this.tmpDir = path.join(dataDir, 'tmp');
     this.workDir = path.join(root, 'workspace');
@@ -35,7 +37,7 @@ export class Runner {
     return {
       paused: this.paused,
       pauseReason: this.pauseReason,
-      usage: this.usage,
+      usage: this.config.data.limits.provider === 'codex' ? null : this.usage,
       running: [...this.procs.keys()],
       queued: this.store.data.runs.filter((r) => r.status === 'queued').map((r) => r.id),
       today: this.runsToday(),
@@ -135,12 +137,14 @@ export class Runner {
 
   tick() {
     const lim = this.config.data.limits;
+    const codex = lim.provider === 'codex';
     // a reading is only valid until its window resets
     const fh = this.usage?.five_hour;
-    if (fh?.resetsAt && fh.resetsAt * 1000 < Date.now()) this.usage = { ...this.usage, five_hour: { ...fh, utilization: 0 } };
-    if (this.paused && /5-hour window|usage limit/i.test(this.pauseReason) && !(this.usage?.five_hour?.utilization >= lim.pause_at_utilization)) { this.paused = false; this.pauseReason = ''; }
+    if (!codex && fh?.resetsAt && fh.resetsAt * 1000 < Date.now()) this.usage = { ...this.usage, five_hour: { ...fh, utilization: 0 } };
+    if (codex && this.paused && /Claude|5-hour window|usage limit/i.test(this.pauseReason)) { this.paused = false; this.pauseReason = ''; }
+    if (!codex && this.paused && /5-hour window|usage limit/i.test(this.pauseReason) && !(this.usage?.five_hour?.utilization >= lim.pause_at_utilization)) { this.paused = false; this.pauseReason = ''; }
     if (this.paused) return;
-    if (this.usage?.five_hour?.utilization >= lim.pause_at_utilization) {
+    if (!codex && this.usage?.five_hour?.utilization >= lim.pause_at_utilization) {
       return this.setPaused(true, `Usage at ${Math.round(this.usage.five_hour.utilization * 100)}% of the 5-hour window. Paused to protect your plan; resumes when you press Resume.`);
     }
     while (this.procs.size < lim.concurrency) {
@@ -170,6 +174,12 @@ export class Runner {
       ctx.demoUrl = this.demoUrl(slug) || '(not published yet)';
       if (run.agent === 'builder') { fs.mkdirSync(dir, { recursive: true }); addDirs.push(dir); this.store.updateLead(lead.id, { demo: { slug } }); }
     }
+    if (agent.grow) {
+      const dir = path.join(this.dataDir, 'posts', run.id);
+      fs.mkdirSync(dir, { recursive: true });
+      ctx.postsDir = dir.replaceAll('\\', '/');
+      addDirs.push(dir);
+    }
     const prompt = agent.prompt(cfg, run.input, ctx);
 
     const mcpFile = path.join(this.tmpDir, `mcp-${run.id}.json`);
@@ -183,25 +193,43 @@ export class Runner {
       },
     }));
 
-    const allowed = [...agent.tools, 'mcp__hq'];
-    const args = [
-      '-p', prompt,
-      '--output-format', 'stream-json', '--verbose',
-      '--model', budget(cfg, run.agent).model,
-      '--max-turns', String(budget(cfg, run.agent).turns),
-      '--setting-sources', 'project,local',
-      '--strict-mcp-config', '--mcp-config', mcpFile,
-      '--tools', agent.tools.join(','),
-      '--allowedTools', allowed.join(','),
-      '--permission-mode', 'dontAsk',
-      '--no-session-persistence',
-      '--name', `HQ ${run.title}`,
-    ];
-    for (const d of addDirs) args.push('--add-dir', d);
+    const codex = this.config.data.limits.provider === 'codex';
+    let args;
+    if (codex) {
+      // Ignore personal MCP/tool configuration. Give this run only HQ's scoped MCP and its own files.
+      const toml = (v) => JSON.stringify(String(v));
+      const env = { HQ_URL: `http://127.0.0.1:${this.port}`, HQ_TOKEN: cfg.mcp_token, HQ_RUN_ID: run.id };
+      const mcpArgs = [path.join(this.root, 'mcp', 'hq-mcp.js')];
+      args = ['exec', '--ephemeral', '--ignore-user-config', '--sandbox', 'workspace-write', '--json', '--cd', this.workDir,
+        '-c', 'web_search="live"',
+        '-c', `mcp_servers.hq.command=${toml(process.execPath)}`,
+        '-c', `mcp_servers.hq.args=${JSON.stringify(mcpArgs)}`,
+        '-c', `mcp_servers.hq.env={${Object.entries(env).map(([k, v]) => `${k}=${toml(v)}`).join(',')}}`,
+        '-c', 'mcp_servers.hq.default_tools_approval_mode="approve"',
+        '-c', 'mcp_servers.hq.required=true',
+        ...addDirs.flatMap((d) => ['--add-dir', d]), '-'];
+    } else {
+      const allowed = [...agent.tools, 'mcp__hq'];
+      args = [
+        '-p', prompt,
+        '--output-format', 'stream-json', '--verbose',
+        '--model', budget(cfg, run.agent).model,
+        '--max-turns', String(budget(cfg, run.agent).turns),
+        '--setting-sources', 'project,local',
+        '--strict-mcp-config', '--mcp-config', mcpFile,
+        '--tools', agent.tools.join(','),
+        '--allowedTools', allowed.join(','),
+        '--permission-mode', 'dontAsk',
+        '--no-session-persistence',
+        '--name', `HQ ${run.title}`,
+      ];
+      for (const d of addDirs) args.push('--add-dir', d);
+    }
 
     const logFile = path.join(this.runsDir, `${run.id}.jsonl`);
     const log = fs.createWriteStream(logFile, { flags: 'a' });
-    const child = spawn(CLAUDE, args, { cwd: this.workDir, env: { ...process.env, HQ_RUN_ID: run.id }, windowsHide: true });
+    const child = spawn(codex ? CODEX : CLAUDE, args, { cwd: this.workDir, env: codex ? codexEnv() : { ...process.env, HQ_RUN_ID: run.id }, windowsHide: true });
+    if (codex) child.stdin.end(prompt);
     this.procs.set(run.id, child);
     this.store.updateRun(run.id, { status: 'running', started: new Date().toISOString(), pid: child.pid });
     const what = run.title.split(' · ').slice(1).join(' · ');
@@ -216,7 +244,8 @@ export class Runner {
     readline.createInterface({ input: child.stdout }).on('line', (line) => {
       let msg;
       try { msg = JSON.parse(line); } catch { return emit({ kind: 'raw', text: line.slice(0, 2000) }); }
-      this.handle(run, msg, emit);
+      if (codex) this.handleCodex(run, msg, emit);
+      else this.handle(run, msg, emit);
     });
     let stderr = '';
     child.stderr.on('data', (d) => { stderr += d.toString(); if (stderr.length > 8000) stderr = stderr.slice(-8000); });
@@ -227,8 +256,8 @@ export class Runner {
       fs.rm(mcpFile, { force: true }, () => {});
       const cur = this.store.getRun(run.id);
       if (cur.status === 'running') {
-        const failed = code !== 0 && !cur.summary;
-        this.store.updateRun(run.id, { status: failed ? 'failed' : 'done', ended: new Date().toISOString(), error: failed ? (stderr.trim().slice(-600) || `exit ${code}`) : cur.error });
+        const failed = codex || (code !== 0 && !cur.summary);
+        this.store.updateRun(run.id, { status: failed ? 'failed' : 'done', ended: new Date().toISOString(), error: failed ? (stderr.trim().slice(-600) || (codex ? 'Codex ended without a final response.' : `exit ${code}`)) : cur.error });
       } else {
         this.store.updateRun(run.id, { ended: cur.ended || new Date().toISOString() });
       }
@@ -241,9 +270,39 @@ export class Runner {
     });
     child.on('error', (e) => {
       this.procs.delete(run.id);
-      this.store.updateRun(run.id, { status: 'failed', ended: new Date().toISOString(), error: `Could not start Claude Code: ${e.message}` });
+      this.store.updateRun(run.id, { status: 'failed', ended: new Date().toISOString(), error: `Could not start ${codex ? 'Codex CLI' : 'Claude Code'}: ${e.message}` });
       this.tick();
     });
+  }
+
+  handleCodex(run, msg, emit) {
+    if (msg.type === 'thread.started') emit({ kind: 'init', model: 'Codex CLI' });
+    if (msg.type === 'item.started') {
+      const item = msg.item || {};
+      if (item.type === 'mcp_tool_call') emit({ kind: 'tool', tool: `${item.server || 'mcp'}/${item.tool || 'tool'}`, input: item.arguments || {}, tool_id: item.id });
+      if (item.type === 'command_execution') emit({ kind: 'tool', tool: 'Codex command', input: { command: item.command || '' }, tool_id: item.id });
+    }
+    if (msg.type === 'item.completed') {
+      const item = msg.item || {};
+      if (item.type === 'agent_message' && item.text) {
+        this.store.updateRun(run.id, { summary: String(item.text).slice(0, 4000) });
+        emit({ kind: 'text', text: String(item.text).slice(0, 2000) });
+      }
+      if (item.type === 'mcp_tool_call' || item.type === 'command_execution') {
+        const result = item.output || item.result || item.error || '';
+        const text = typeof result === 'string' ? result : JSON.stringify(result);
+        emit({ kind: 'tool_result', tool_id: item.id, error: Boolean(item.error), text: text.slice(0, 1500) });
+      }
+    }
+    if (msg.type === 'turn.completed') {
+      this.store.updateRun(run.id, { status: 'done', cost_usd: 0, ended: new Date().toISOString() });
+      emit({ kind: 'result', ok: true, text: this.store.getRun(run.id)?.summary || '', turns: 1 });
+    }
+    if (msg.type === 'turn.failed' || msg.type === 'error') {
+      const message = String(msg.error?.message || msg.message || msg.error || 'Codex turn failed').slice(0, 1000);
+      this.store.updateRun(run.id, { status: 'failed', error: message, ended: new Date().toISOString() });
+      emit({ kind: 'result', ok: false, text: message, turns: 0 });
+    }
   }
 
   handle(run, msg, emit) {
@@ -296,6 +355,7 @@ export class Runner {
   // Autopilot: each step hands the businesses that passed to the next step, in batches.
   // Nothing goes outside automatically: the owner approves every demo and every message.
   afterRun(run) {
+    if (run.agent === 'creator' && run.status === 'done') this.onGrow?.(run);
     if (run.hunt_id) setTimeout(() => this.checkHunt(run.hunt_id), 500);
     if (!run.autopilot || run.status !== 'done') return;
     const hunt = run.hunt_id && this.store.getHunt(run.hunt_id);

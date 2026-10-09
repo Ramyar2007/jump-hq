@@ -15,7 +15,8 @@ import { Publisher, githubToken } from './publish.js';
 import { listAgents, AGENTS } from './agents.js';
 import { Judge, askClaude, langName } from './judge.js';
 import { words } from './words.js';
-import { Telegram, Tunnel, Beacon, lanUrl, claudeStatus, githubStatus } from './connect.js';
+import { Telegram, Tunnel, Beacon, lanUrl, claudeStatus, codexStatus, githubStatus } from './connect.js';
+import { Grow } from './grow.js';
 import QRCode from 'qrcode';
 const AGENT_FROM = Object.fromEntries(Object.entries(AGENTS).map(([k, a]) => [k, a.from]));
 
@@ -49,6 +50,8 @@ const publisher = new Publisher({ sitesDir: runner.sitesDir, config });
 store.onChange((kind, payload) => broadcast({ type: 'change', kind, payload }));
 const judge = new Judge({ store, config, root: ROOT, sitesDir: runner.sitesDir });
 const telegram = new Telegram(config);
+const grow = new Grow({ store, config, judge, dataDir: DATA, say, telegram, asleep: () => asleep() });
+runner.onGrow = (run) => grow.importRun(run).catch((e) => store.log(e.message, { kind: 'error' }));
 const beacon = new Beacon({ config, token: githubToken });
 const tunnel = new Tunnel({ port: PORT, onUrl: (u) => { broadcast({ type: 'link', url: u }); if (u) { store.log(say('phone_live', { u }), { kind: 'note' }); beacon.publish(u); } } });
 
@@ -514,13 +517,15 @@ api.post('/judge/:kind/:id', async (req, res) => {
 // ---- connections ----------------------------------------------------------------------
 async function connections() {
   const c = config.data;
-  const [claude, github] = await Promise.all([claudeStatus(), githubStatus()]);
+  const provider = c.limits.provider === 'codex' ? 'codex' : 'claude';
+  const [brain, github] = await Promise.all([provider === 'codex' ? codexStatus() : claudeStatus(), githubStatus()]);
   return {
-    brain: { ok: claude.ok, detail: claude.detail, model: c.limits.model },
+    brain: { provider, ok: brain.ok, detail: brain.detail, model: c.limits.model },
     email: { ok: Boolean(c.outreach.sender === 'smtp' && c.smtp.user && c.smtp.pass), manual: c.outreach.sender !== 'smtp', host: c.smtp.host, user: c.smtp.user },
     whatsapp: { ok: true, prefix: config.market('krd')?.phone_prefix },
     telegram: { ok: telegram.on, enabled: c.connections.telegram.enabled, chat_id: c.connections.telegram.chat_id },
     publish: { ok: github.ok, detail: github.detail, repo: c.publish.repo },
+    social: { ok: Boolean(grow.platforms().facebook || grow.platforms().telegram), ...grow.platforms(), fb_page_id: c.connections.social?.fb_page_id || '', telegram_channel: c.connections.social?.telegram_channel || '' },
     phone: { ok: Boolean(tunnel.url), status: tunnel.status, url: tunnel.url, lan: HOST === '0.0.0.0' ? lanUrl(PORT) : '', devices: devices().length },
   };
 }
@@ -542,7 +547,8 @@ api.post('/connections/test', async (req, res) => {
       config.update({ connections: { telegram: { enabled: true } } });
       return res.json({ ok: true, message: 'Sent a test message to your Telegram.' });
     }
-    if (which === 'brain') { const s = await claudeStatus(); if (!s.ok) throw new Error(s.detail); return res.json({ ok: true, message: s.detail }); }
+    if (which === 'social') return res.json({ ok: true, message: await grow.test() });
+    if (which === 'brain') { const s = config.data.limits.provider === 'codex' ? await codexStatus() : await claudeStatus(); if (!s.ok) throw new Error(s.detail); return res.json({ ok: true, message: s.detail }); }
     if (which === 'publish') { const s = await githubStatus(); if (!s.ok) throw new Error(s.detail); return res.json({ ok: true, message: s.detail }); }
     if (which === 'phone') { config.update({ connections: { phone: { public_link: true } } }); await tunnel.start(); return res.json({ ok: true, message: tunnel.url ? `Live at ${tunnel.url}` : 'Starting the public link…' }); }
     throw new Error('Unknown connection');
@@ -579,6 +585,8 @@ api.get('/bootstrap', (req, res) => {
     runs: store.data.runs.slice(0, 100),
     hunts: store.data.hunts.slice(0, 30).map(huntView),
     sites: store.data.sites,
+    posts: grow.posts.slice(0, 80),
+    platforms: grow.platforms(),
     activity: store.data.activity.slice(0, 120),
     runner: runner.state(),
     stats: stats(),
@@ -759,6 +767,7 @@ api.put('/settings', (req, res) => {
   const patch = req.body || {};
   if (patch.smtp && patch.smtp.pass === '••••••••') delete patch.smtp.pass;
   if (patch.connections?.telegram?.token === '••••••••') delete patch.connections.telegram.token;
+  if (patch.connections?.social?.fb_token === '••••••••') delete patch.connections.social.fb_token;
   const out = config.update(patch);
   syncMode();
   if (config.data.connections.phone.public_link) tunnel.start(); else tunnel.stop();
@@ -772,7 +781,20 @@ api.post('/password', (req, res) => {
   config.setPassword(req.body.next);
   res.json({ ok: true });
 });
+// ---- Grow mode: posts for the owner's own pages ----------------------------------------
+api.get('/posts', (req, res) => res.json({ posts: grow.posts.slice(0, 80), platforms: grow.platforms() }));
+api.post('/posts/make', (req, res) => {
+  const b = req.body || {};
+  try { res.json(runner.enqueue('creator', { brief: String(b.brief || '').slice(0, 1500), count: Math.max(1, Math.min(10, Number(b.count) || 5)), mix: ['images', 'videos'].includes(b.mix) ? b.mix : 'mix' })); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+const postAction = (fn) => async (req, res) => { try { res.json(await fn(req.params.id, req.body || {})); } catch (e) { res.status(400).json({ error: e.message }); } };
+api.post('/posts/:id/approve', postAction((pid, b) => grow.approve(pid, b)));
+api.post('/posts/:id/discard', postAction((pid) => grow.discard(pid)));
+api.post('/posts/:id/post-now', postAction((pid) => grow.postNow(pid)));
+api.post('/posts/:id/judge', postAction((pid) => { const p = grow.get(pid); if (!p) throw new Error('No such post'); grow.set(p, { status: 'judging', judge: null }); grow.review(pid); return p; }));
 app.use('/api', api);
+app.use('/p', (req, res, next) => (authed(req) ? next() : res.status(401).end()), express.static(grow.dir));
 
 // Owner-only demo previews.
 app.use('/d', (req, res, next) => (authed(req) ? next() : res.status(401).send('Sign in to Agency HQ to preview demos.')), express.static(runner.sitesDir, { extensions: ['html'] }));

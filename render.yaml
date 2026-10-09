@@ -1,10 +1,16 @@
-# One-click deploy on Render (Blueprint). Secrets are entered in the Render dashboard, never committed.
+# Jump HQ Cloud on Render. Customer accounts and tenant data live on the persistent disk.
 services:
   - type: web
     name: jump-hq
     runtime: docker
-    plan: free
+    plan: starter
     healthCheckPath: /healthz
+    domains:
+      - hq.jumpagency.org
+    disk:
+      name: jump-hq-data
+      mountPath: /app/cloud-data
+      sizeGB: 10
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false

@@ -5,6 +5,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { CODEX, codexEnv } from './codex.js';
 
 const CLAUDE = process.env.CLAUDE_BIN || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe') : 'claude');
 
@@ -38,7 +39,7 @@ const RULES = {
 const rule = (k, lang) => RULES[k][{ en: 0, ckb: 1, ar: 2 }[lang] ?? 0];
 
 // Checks that never depend on the model.
-function hardChecks(kind, item, ctx, lang = 'en') {
+export function hardChecks(kind, item, ctx, lang = 'en') {
   const fails = [];
   if (kind === 'message') {
     const body = String(item.body || '');
@@ -49,6 +50,11 @@ function hardChecks(kind, item, ctx, lang = 'en') {
     if (ctx.demoUrl && !body.includes(ctx.demoUrl.replace(/\/$/, ''))) fails.push(rule('nolink', lang));
     if (links.length > 2) fails.push(rule('links', lang));
     if (/lorem ipsum|\[(your|business|name)[^\]]*\]|{{|TODO/i.test(body)) fails.push(rule('placeholder', lang));
+  }
+  if (kind === 'post') {
+    const all = `${item.caption || ''} ${item.text || ''}`;
+    if (!String(item.caption || '').trim()) fails.push(rule('empty', lang));
+    if (/lorem ipsum|\[(your|business|name|price)[^\]]*\]|{{|TODO|placeholder/i.test(all)) fails.push(rule('placeholder', lang));
   }
   if (kind === 'demo') {
     const text = ctx.text || '';
@@ -89,6 +95,24 @@ Expected language of the message: ${ctx.language}
 
 Check: 1) every claim about the business is backed by the facts above (no invented numbers, reviews or compliments); 2) polite, warm, no fake urgency, no pressure, no exaggerated promises; 3) right language, natural wording; 4) exactly one link and it is the demo; 5) has a clear, easy way to say no; 6) the recipient looks like the business's own public contact; 7) short enough to read in 30 seconds.`;
   }
+  if (kind === 'post') {
+    return `${common}
+
+ITEM: a ${item.format === 'video' ? 'short video' : 'picture'} post for OUR OWN social media pages, about to be posted publicly.
+Who we are: ${cfg.company.name}. What we sell: ${cfg.profile?.what || ''}. Our offer: ${ctx.offer}
+Expected language: ${ctx.language} (English is also fine).
+Caption:
+"""
+${item.caption}
+${(item.hashtags || []).join(' ')}
+"""
+Text written on the design:
+"""
+${String(item.text || '').slice(0, 2500)}
+"""
+
+Check: 1) no invented results, client names, reviews, numbers, discounts or prices; 2) honest, no fake urgency, nothing that breaks Facebook / Instagram / TikTok rules; 3) natural wording in its language, no mistakes; 4) a clear call to action; 5) hashtags relevant and not spammy (max 10). For "revise", put the fixed caption in "revised" as {"subject":"","body":"<fixed caption without hashtags>"} (you can't change the design: if the design text is wrong, use "hold").`;
+  }
   return `${common}
 
 ITEM: a free concept ${cfg.profile?.sample_name || 'website'} ("demo") built for a client, about to be put online at a public address and sent to them.
@@ -103,8 +127,36 @@ ${(ctx.text || '').slice(0, 7000)}
 Check: 1) it clearly says it is a concept and not the official website; 2) no invented reviews, ratings, awards, prices or menu items that are not in the facts; 3) the name, contact and location match the facts; 4) it reads well in its languages; 5) nothing offensive or embarrassing. For a demo, never use "revise" (you cannot edit the page): use "approve" or "hold".`;
 }
 
-// One plain answer from Claude, no tools (used by the setup assistant).
+function runCodex(text, cwd, timeout = 150000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(CODEX, ['exec', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--json', '--cd', cwd, '-'], { cwd, env: codexEnv(), windowsHide: true });
+    let pending = '', answer = '', err = '';
+    const timer = setTimeout(() => { child.kill(); reject(new Error('Codex took too long. Try again.')); }, timeout);
+    child.stdout.on('data', (data) => {
+      pending += data.toString();
+      const lines = pending.split(/\r?\n/); pending = lines.pop() || '';
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === 'item.completed' && msg.item?.type === 'agent_message') answer = String(msg.item.text || '');
+          if (msg.type === 'turn.failed' || msg.type === 'error') err = String(msg.error?.message || msg.message || msg.error || 'Codex turn failed');
+        } catch { /* ignore non-JSON CLI output */ }
+      }
+    });
+    child.stderr.on('data', (d) => { err += d.toString().slice(0, 500); });
+    child.on('error', (e) => { clearTimeout(timer); reject(new Error(`Could not start Codex CLI: ${e.message}`)); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0 || !answer) return reject(new Error((err || 'Codex returned no answer.').trim().slice(0, 500)));
+      resolve({ text: answer, cost: 0 });
+    });
+    child.stdin.end(text);
+  });
+}
+
+// One plain answer from the selected local AI CLI, no agent tools (used by setup and the Judge).
 export function askClaude(text, cfg, cwd, timeout = 150000) {
+  if (cfg.limits?.provider === 'codex') return runCodex(text, cwd, timeout);
   return new Promise((resolve, reject) => {
     const args = ['-p', text, '--output-format', 'json', '--model', (cfg.limits.saver && cfg.limits.models?.judge) || cfg.limits.model || 'sonnet', '--max-turns', '1',
       '--setting-sources', 'project,local', '--strict-mcp-config', '--tools', '', '--permission-mode', 'dontAsk', '--no-session-persistence'];
@@ -192,7 +244,15 @@ export class Judge {
     if (fails.length) return { verdict: 'hold', score: 0, risk: 'high', summary: fails[0], reasons: fails, revised: null, by: 'rules', at };
     this.busy++;
     try {
-      const { verdict: v, cost } = await runClaude(prompt(kind, item, ctx, cfg), cfg, this.cwd);
+      let v, cost;
+      if (cfg.limits?.provider === 'codex') {
+        const result = await runCodex(prompt(kind, item, ctx, cfg), this.cwd);
+        const match = String(result.text).match(/\{[\s\S]*\}/);
+        if (!match) throw new Error('The Judge gave no JSON verdict.');
+        v = JSON.parse(match[0]); cost = result.cost;
+      } else {
+        ({ verdict: v, cost } = await runClaude(prompt(kind, item, ctx, cfg), cfg, this.cwd));
+      }
       const out = {
         verdict: ['approve', 'revise', 'hold'].includes(v.verdict) ? v.verdict : 'hold',
         score: Math.max(0, Math.min(100, Math.round(Number(v.score) || 0))),

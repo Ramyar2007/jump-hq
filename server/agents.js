@@ -83,6 +83,8 @@ Where to look (use several, a business does not need a map listing or a website 
 - Map listings and review sites that appear in results (Google Maps, TripAdvisor, Foursquare, local directories).
 - The business's own Instagram / Facebook / TikTok pages (often their only online presence here). If a page will not open, use what the search result shows.
 - Anywhere this kind of client is listed: directories, LinkedIn company pages, app stores, industry lists, local press.
+- BUYING SIGNALS first (they show a client is ready to pay for what we sell): public posts or comments asking for this kind of service ("who can make…", "looking for a designer / video / website", in all three languages); businesses already paying for ads (Meta Ad Library, sponsored posts) whose ads are weak; online shops whose pages went quiet or look unprofessional; hiring or job posts for this kind of work; fast-growing pages that clearly lack it. Write the signal you saw, with its link, in notes.
+- Prefer businesses that already sell ONLINE (Instagram / TikTok / Facebook shops, online stores, brands, delivery-only kitchens, startups, creators, agencies): they can pay and they gain from what we sell. A shop with no online selling at all is a weaker lead.
 
 Steps:
 1. hq_list_leads first, so you never add a business that is already there.
@@ -304,6 +306,56 @@ ${input.reply_text || ''}
 4. hq_request_approval type "${ctx.channel === 'whatsapp' ? 'whatsapp' : 'email'}" with to, ${ctx.channel === 'whatsapp' ? '' : 'subject ("Re: ..."), '}body.
 5. hq_update_lead stage "replied" (or "won" only if they explicitly said yes) with a short note.`,
   },
+
+  creator: {
+    name: 'Content creator',
+    title: 'Makes your posts and videos',
+    blurb: 'Plans the next posts for your own pages, designs each picture or short video, and writes the captions in your language. The Judge checks them; approved ones are posted on time.',
+    tools: ['WebSearch', 'WebFetch', 'Read', 'Write'],
+    grow: true,
+    fields: [
+      { key: 'brief', label: 'What should the posts be about? (products, offers, news)', type: 'textarea' },
+      { key: 'count', label: 'How many posts', type: 'number', default: 5, min: 1, max: 10 },
+      { key: 'mix', label: 'Pictures or videos', type: 'select', options: ['mix', 'images', 'videos'] },
+    ],
+    prompt: (cfg, input, ctx) => {
+      const n = Math.max(1, Math.min(10, Number(input.count) || 5));
+      const mix = { images: 'pictures only', videos: 'short videos only' }[input.mix] || 'a mix: about half pictures, half short videos';
+      const langs = (cfg.market.site_languages || [cfg.market.language]).join(' and ');
+      const start = new Date(Date.now() + 864e5);
+      return `${SHARED(cfg)}
+
+ROLE: Content creator for OUR OWN pages (${cfg.company.name}). This is Grow mode: social media posts that bring us customers. Nobody outside sees anything until the Judge and the owner approve it.
+What we sell: ${P(cfg).what}. ${P(cfg).value} ${cfg.offer.pitch}
+Who should see the posts: ${P(cfg).audience}.
+${cfg.company.website ? `Our website: ${cfg.company.website}\n` : ''}${(cfg.company.socials && Object.values(cfg.company.socials).some(Boolean)) ? `Our pages: ${JSON.stringify(cfg.company.socials)}\n` : ''}What the owner wants the posts to be about:
+<<<
+${String(input.brief || 'Choose yourself: what we offer, why it helps, a real example of the work, a simple tip for our audience, and a clear call to message us.').slice(0, 1500)}
+>>>
+
+Make ${n} posts: ${mix}. Spread them one per day from ${start.toISOString().slice(0, 10)}, at a good local posting time (about 19:00-21:00 ${cfg.market.country}).
+
+Before designing (max 4 searches): look up what posts work for this kind of business and audience right now, and check our own website or page if one is given. Use only real facts about us; never invent prices, results, reviews, clients or numbers. If you don't know a price, don't show one.
+
+Jump HQ draws every design with its own professional templates, so you only write the words and pick the look. Each slide is an object with these optional fields:
+- "kicker": 1-3 words in a small pill above the headline (e.g. "NEW", "TIP", "FREE SAMPLE")
+- "big": a short big number or word shown huge (e.g. "3×", "24/7", "48h"); only if it is TRUE
+- "headline": the main line, max 8 words. Put 1-3 key words between ** ** to colour them, e.g. "A photo gets seen. A video **sells**."
+- "body": one short supporting sentence (max 18 words)
+- "bullets": up to 3 very short points (max 6 words each)
+- "cta": the button text, max 4 words (e.g. "Message us on WhatsApp")
+Use 2 to 4 fields per slide, never all of them: fewer words = stronger post.
+- PICTURE post: "format":"image" and ONE slide (a 1080 x 1350 portrait post).
+- VIDEO post: "format":"video" and THREE slides (they become a 10-second vertical video with motion for Reels / TikTok / Stories): slide 1 a strong hook (kicker + headline only), slide 2 the point (proof, example, tip or bullets), slide 3 the call to action (headline + cta).
+Look: "theme" is "dark", "light" or "accent" (vary it between posts), "accent" is one hex colour that fits our brand (keep the same one across all posts for a consistent feed).
+Language: write the slide text in ONE language per post (mostly ${langs.split(' and ')[0]}; at most one post may be in ${langs.split(' and ')[1] || 'English'}). Captions in the same language, plus a one-line English version at the end if the post is not in English.
+
+Write ONE file: ${ctx.postsDir}/posts.json, a JSON array with one object per post, in order:
+{"title":"short name for the owner","format":"image" or "video","theme":"dark","accent":"#ff6b2c","slides":[{"kicker":"...","headline":"...","body":"..."}],"caption":"the post text: hook line, 1-3 short lines, a clear call to action (message us / link)","hashtags":["#...", "..."] (5-10, mixed local and English),"scheduled_at":"YYYY-MM-DDTHH:MM:00${/kurd|iraq/i.test(cfg.market.country) ? '+03:00' : 'Z'}"}
+
+Call hq_note once when you start and once when posts.json is written. Finish with a two-line summary.`;
+    },
+  },
 };
 
 // The order a search goes through. Each step hands its passing businesses to the next.
@@ -318,5 +370,5 @@ export function budget(cfg, agent) {
 }
 
 export function listAgents() {
-  return Object.entries(AGENTS).map(([key, a]) => ({ key, name: a.name, title: a.title, blurb: a.blurb, fields: a.fields, tools: a.tools, needsLead: Boolean(a.needsLead), batch: Boolean(a.batch) }));
+  return Object.entries(AGENTS).map(([key, a]) => ({ key, name: a.name, title: a.title, blurb: a.blurb, fields: a.fields, tools: a.tools, needsLead: Boolean(a.needsLead), batch: Boolean(a.batch), grow: Boolean(a.grow) }));
 }

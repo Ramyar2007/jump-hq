@@ -22,11 +22,11 @@ export const DEFAULTS = {
       site_languages: ['Kurdish Sorani', 'English'],
       channel: 'whatsapp',
       phone_prefix: '964',
-      notes: 'Most local businesses here have no website and few online reviews. Their real presence is Instagram, Facebook, TikTok, WhatsApp and Google Maps, and Instagram often blocks automated reading. A missing website or few reviews is normal here and is exactly the opportunity, not a red flag. A business with an active social page, a map listing or a delivery-app listing counts as real and trading unless there is evidence it closed.',
+      notes: 'Most local businesses here have no website and few online reviews. Their real presence is Instagram, Facebook, TikTok, WhatsApp and Google Maps, and Instagram often blocks automated reading. A missing website or few reviews is normal here and is exactly the opportunity, not a red flag. A business with an active social page, a map listing or a delivery-app listing counts as real and trading unless there is evidence it closed. Best clients are businesses that already sell online (Instagram / TikTok / Facebook shops, online stores, delivery): they have money coming in and gain the most.',
       build_price: 350000,
       monthly_price: 35000,
       cities: ['Sulaymaniyah', 'Erbil', 'Duhok', 'Halabja', 'Ranya', 'Kalar', 'Zakho', 'Koya'],
-      niches: ['restaurants', 'cafes', 'beauty salons', 'barbershops', 'dental clinics', 'medical clinics', 'gyms', 'hotels', 'bakeries and sweet shops', 'clothing shops', 'car showrooms', 'real estate offices'],
+      niches: ['Instagram clothing shops', 'online cosmetics and beauty brands', 'online electronics stores', 'home-food and delivery kitchens', 'e-commerce brands', 'online course creators', 'startups and apps', 'travel agencies', 'real estate offices', 'restaurants with delivery', 'coaches and personal trainers', 'agencies and studios'],
     },
     uk: {
       id: 'uk',
@@ -66,12 +66,13 @@ export const DEFAULTS = {
     concurrency: 1,
     daily_runs: 30,
     pause_at_utilization: 0.9,
+    provider: 'claude', // claude | codex (local CLI)
     model: 'sonnet',
     max_turns: 60,
     // Saver: cheap model for most jobs, short runs, and one Analyst call instead of Opportunity + Strategist + Reviewer.
     saver: true,
-    models: { default: 'haiku', builder: 'sonnet', judge: 'haiku' },
-    turns: { lead: 8, scout: 30, investigator: 20, opportunity: 14, strategist: 10, reviewer: 10, builder: 30, writer: 6, closer: 8 },
+    models: { default: 'haiku', builder: 'sonnet', creator: 'sonnet', judge: 'haiku' },
+    turns: { lead: 8, scout: 30, investigator: 20, opportunity: 14, strategist: 10, reviewer: 10, builder: 30, writer: 6, closer: 8, creator: 30 },
   },
   qualify: {
     threshold: 70, // build at or above this score
@@ -108,6 +109,8 @@ export const DEFAULTS = {
   connections: {
     telegram: { enabled: false, token: '', chat_id: '' },
     phone: { public_link: true },
+    // Grow mode: where approved posts go by themselves (Instagram / TikTok are one tap from the owner).
+    social: { fb_page_id: '', fb_token: '', telegram_channel: '' },
   },
   auth: { salt: '', hash: '' },
   mcp_token: '',
@@ -130,6 +133,7 @@ export class Config {
     delete stored.market; // v1 single market → markets{}
     if (stored.offer) { delete stored.offer.build_price; delete stored.offer.monthly_price; }
     this.data = deepMerge(DEFAULTS, stored);
+    if (!['claude', 'codex'].includes(this.data.limits.provider)) this.data.limits.provider = 'claude';
     if (!this.data.mcp_token) this.data.mcp_token = crypto.randomBytes(24).toString('hex');
     this.save();
   }
@@ -140,6 +144,7 @@ export class Config {
     const safe = { ...patch };
     delete safe.auth; delete safe.mcp_token;
     if (process.env.HQ_LOCK_LIMITS) delete safe.limits; // hosted: the plan sets the limits, not the user
+    if (safe.limits && !['claude', 'codex'].includes(safe.limits.provider)) delete safe.limits.provider;
     this.data = deepMerge(this.data, safe);
     this.save();
     return this.public();
@@ -162,6 +167,7 @@ export class Config {
     delete d.auth; delete d.mcp_token;
     d.smtp = { ...d.smtp, pass: d.smtp.pass ? '••••••••' : '' };
     d.connections.telegram = { ...d.connections.telegram, token: d.connections.telegram.token ? '••••••••' : '' };
+    d.connections.social = { ...(d.connections.social || {}), fb_token: d.connections.social?.fb_token ? '••••••••' : '' };
     d.has_password = Boolean(this.data.auth.hash);
     return d;
   }

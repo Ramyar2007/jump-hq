@@ -25,8 +25,8 @@ const BASE_PORT = 6100;
 // What each plan may do. jobs = agent jobs per day (one search of 10 shops with 2 demos is about 5 jobs).
 export const PLANS = {
   trial: { name: 'Free trial', price: 0, jobs: 6, days: 7 },
-  starter: { name: 'Starter', price: 15, jobs: 20 },
-  pro: { name: 'Pro', price: 40, jobs: 60 },
+  starter: { name: 'Pro', price: 20, jobs: 25 },
+  pro: { name: 'Agency', price: 70, jobs: 80 },
 };
 
 fs.mkdirSync(path.join(DATA, 'tenants'), { recursive: true });
