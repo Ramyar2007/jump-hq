@@ -17,7 +17,9 @@ body.on-map .page { max-width: none; padding: 14px; }
 .mp-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: mpPulse 2s infinite; }
 .mp-dot.prev { background: #ff6b2c; animation: none; }
 @keyframes mpPulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); } }
-.mp-ctl { position: absolute; top: 14px; inset-inline-end: 14px; padding: 10px; display: grid; gap: 8px; max-width: calc(100% - 270px); }
+.mp-ctl { position: absolute; top: 66px; inset-inline-end: 14px; padding: 10px; display: none; gap: 8px; max-width: calc(100% - 28px); transform-origin: top right; }
+.mp-ui.open .mp-ctl { display: grid; animation: mpMenu .18s ease-out; }
+@keyframes mpMenu { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
 .mp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .mp-row > span { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .08em; min-width: 62px; text-align: end; }
 .mp-seg { display: flex; background: rgba(255, 255, 255, .07); border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; }
@@ -27,7 +29,19 @@ body.on-map .page { max-width: none; padding: 14px; }
 .mp-seg button.on { background: #ff6b2c; color: #fff; box-shadow: 0 4px 14px rgba(255, 107, 44, .45); }
 .mp-btn { background: rgba(255, 255, 255, .07); }
 .mp-btn.on { background: rgba(255, 107, 44, .25); color: #ffd2bd; }
-.mp-toggle { display: none; position: absolute; top: 14px; inset-inline-end: 14px; width: 42px; height: 42px; color: #fff; font-size: 18px; cursor: pointer; }
+.mp-toggle { position: absolute; top: 14px; inset-inline-end: 14px; height: 42px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; color: #fff; font: 700 14px/1 var(--font); cursor: pointer; transition: background .15s, transform .1s; }
+.mp-toggle:hover { background: rgba(20, 28, 46, .8); }
+.mp-toggle:active { transform: scale(.97); }
+.mp-ui.open .mp-toggle { background: #ff6b2c; border-color: transparent; }
+.mp-view { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); }
+.mp-view button { height: 42px; padding: 0 18px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .14); background: rgba(9, 14, 26, .62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: #fff; font: 700 14px/1 var(--font); cursor: pointer; box-shadow: 0 10px 30px rgba(0, 0, 0, .28); transition: background .15s, transform .1s; }
+.mp-view button:hover { background: rgba(20, 28, 46, .85); }
+.mp-view button:active { transform: scale(.97); }
+.mp-view .mp-go-in { background: #ff6b2c; border-color: transparent; box-shadow: 0 8px 24px rgba(255, 107, 44, .45); }
+.mp-view .mp-go-in:hover { background: #eb5a1c; }
+.mp-go-out, .mp-ui.in .mp-go-in { display: none; }
+.mp-ui.in .mp-go-out { display: inline-block; }
+.mp-city { margin-top: 4px; font-size: 12px; color: #fcd9c4; font-weight: 600; }
 .mp-team { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; max-width: calc(100% - 28px); overflow-x: auto; scrollbar-width: none; }
 .mp-chip { display: flex; align-items: center; gap: 7px; border: 0; background: transparent; color: #e2e8f0; padding: 6px 10px 6px 7px; border-radius: 10px; cursor: pointer; font: 600 12.5px/1.1 var(--font); white-space: nowrap; text-align: start; transition: background .15s; }
 .mp-chip:hover { background: rgba(255, 255, 255, .08); }
@@ -69,9 +83,8 @@ body.on-map .page { max-width: none; padding: 14px; }
 .mp-pill.gold { background: #b45309; }
 @keyframes mpBlink { 50% { opacity: .55; } }
 @media (max-width: 900px) {
-  .mp-toggle { display: grid; place-items: center; }
-  .mp-ctl { display: none; top: 64px; max-width: calc(100% - 28px); }
-  .mp-ui.open .mp-ctl { display: grid; }
+  .mp-toggle span { display: none; }
+  .mp-view { top: auto; bottom: 86px; }
   .mp-row { justify-content: flex-start; }
   .mp-row > span { text-align: start; min-width: 0; width: 100%; }
   .mp-clock { min-width: 0; padding: 10px 12px; }

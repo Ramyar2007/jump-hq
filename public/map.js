@@ -137,7 +137,12 @@ const REHEARSE = {
 };
 const TABLE_ROLES = new Set(['opportunity', 'strategist', 'reviewer']);
 const SLOT_X = [33.5, -33.5, 46.5, -46.5, 59.5, -59.5, 72.5, -72.5];
-const SHOP_Z = 12, DOOR_Z = 19.4, WALK_Z = 21.7, TABLE = V(0, 0, 8);
+const SHOP_Z = 12, TABLE = V(0, 0, 8), ITABLE = V(0, 0, -17.6);
+// The city grows ring by ring as the team builds more demos.
+const LEVEL_R = [74, 100, 126, 152, 178, 200], DEMOS_PER_LEVEL = 3;
+// Desks inside Jump HQ: [x, z, facing] (1 = +x, -1 = -x, 0 = +z)
+const DESKS = { scout: [-10.4, -13.7, 1], investigator: [-10.4, -17.6, 1], opportunity: [-10.4, -21.5, 1], strategist: [-4.2, -23.1, 0], reviewer: [4.2, -23.1, 0], builder: [10.4, -21.5, -1], writer: [10.4, -17.6, -1], closer: [10.4, -13.7, -1] };
+const DRONE_ROLES = ['scout', 'investigator', 'closer'];
 const FILLER_SIGNS = ['نانەوایی', 'دەرمانخانە', 'کافێ', 'بازاڕی بچووک', 'جلوبەرگ', 'مۆبایل', 'شیرینی', 'کتێبخانە'];
 const STATUS = {
   none: { label: 'No website', cls: 'bad' },
@@ -557,10 +562,11 @@ export function mount(stage, api) {
     trunk: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
   };
   const buckets = {};
+  let curLevel = 0;
   const qx = new THREE.Quaternion(), ex = new THREE.Euler();
   function add(key, geo, x, y, z, { ry = 0, rx = 0, color = '#ffffff' } = {}) {
     geo.applyMatrix4(new THREE.Matrix4().compose(V(x, y, z), qx.setFromEuler(ex.set(rx, ry, 0)), V(1, 1, 1)));
-    (buckets[key] ||= []).push(tint(geo, color));
+    (buckets[`${curLevel}|${key}`] ||= []).push(tint(geo, color));
   }
   const local = (cx, cz, ry, lx, lz) => { const c = Math.cos(ry), s = Math.sin(ry); return [cx + lx * c + lz * s, cz - lx * s + lz * c]; };
   const PALETTE = ['#efe6d6', '#e8dcc6', '#f1ece2', '#e5d3b8', '#d9cbb5', '#ece4da', '#e3d9cf', '#d8c3a5', '#f3e9dc', '#cdbfae'];
@@ -598,23 +604,36 @@ export function mount(stage, api) {
   for (let x = -176; x < 176; x += R(13, 17)) {
     for (let z = -176; z < 176; z += R(14, 19)) {
       const w = R(9, 14), d = R(9, 13), cx = x + w / 2, cz = z + d / 2;
-      if (blocked(cx, cz, w + 1, d + 1) || Math.hypot(cx, cz) > 182) continue;
+      const dist = Math.hypot(cx, cz) + Math.max(w, d) / 2;
+      curLevel = LEVEL_R.findIndex((r) => dist <= r);
+      if (blocked(cx, cz, w + 1, d + 1) || curLevel < 0) continue;
       const far = cz < -48, south = cz > 38;
       const h = south ? R(6.4, 13) : far ? R(12, 38) : R(9.6, 24);
       const kind = h > 26 && rnd() < 0.6 ? 'office' : rnd() < 0.3 ? 'old' : 'apt';
       building(cx, cz, w, d, Math.round(h / 3.2) * 3.2, kind, south ? Math.PI : 0);
     }
   }
-  const staticMesh = {};
-  for (const [k, geos] of Object.entries(buckets)) {
-    const m = new THREE.Mesh(mergeGeometries(geos), mats[k]); m.castShadow = k !== 'snow'; m.receiveShadow = true; scene.add(m); staticMesh[k] = m;
+  const cityMeshes = [];
+  for (const [lk, geos] of Object.entries(buckets)) {
+    const [lv, k] = lk.split('|');
+    const m = new THREE.Mesh(mergeGeometries(geos), mats[k]); m.castShadow = k !== 'snow'; m.receiveShadow = true; scene.add(m);
+    cityMeshes.push({ m, level: +lv, snow: k === 'snow' });
     geos.forEach((g) => g.dispose());
+  }
+  let cityR = LEVEL_R[0], cityLevel = 1;
+  function growCity(dt, snowCover) {
+    cityR = lerp(cityR, LEVEL_R[cityLevel - 1], 1 - Math.exp(-dt * 0.8));
+    for (const c of cityMeshes) {
+      const lo = c.level ? LEVEL_R[c.level - 1] : 0, hi = LEVEL_R[c.level];
+      const g = smooth(0, 1, (cityR - lo + 2) / (hi - lo));
+      c.m.scale.y = Math.max(0.001, g); c.m.visible = g > 0.002 && (!c.snow || snowCover > 0.01);
+    }
   }
   rnd = mulberry(77);
 
   /* ---------------- trees (instanced, they sway in the wind) */
   const trees = [];
-  const addTree = (x, z, type, s = 1) => trees.push({ x, z, type, s: s * R(0.85, 1.2), ph: R(0, 6) });
+  const addTree = (x, z, type, s = 1) => trees.push({ x, z, type, s: s * R(0.85, 1.2), ph: R(0, 6), d: Math.hypot(x, z) });
   for (let x = -170; x <= 170; x += 20) if (Math.abs(x) > 8) addTree(x + R(-1, 1), 35.8, 'round', 0.8);
   for (let i = 0; i < 46; i++) { const a = R(0, Math.PI * 2), r = R(16, 28); const x = clamp(Math.cos(a) * r * 1.3, -28, 28), z = clamp(60 + Math.sin(a) * r, 39, 83); if (Math.hypot(x, z - 60) > 8.5) addTree(x, z, rnd() < 0.7 ? 'round' : 'poplar', 1.1); }
   for (let x = -176; x <= 176; x += 7) if (Math.abs(x) > 96) { addTree(x, -32, 'poplar'); }
@@ -632,14 +651,17 @@ export function mount(stage, api) {
   rounds.forEach((tr, i) => roundMesh.setColorAt(i, C(LEAF[Math.floor(h2(i, 5) * 4.6)])));
   poplars.forEach((tr, i) => poplarMesh.setColorAt(i, C(LEAF[h2(i, 8) < 0.35 ? 4 + Math.floor(h2(i, 2) * 3) : Math.floor(h2(i, 9) * 4)])));
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler(), one = V(1, 1, 1);
-  trees.forEach((tr, i) => { const th = tr.type === 'poplar' ? 3.2 * tr.s : 2.4 * tr.s; trunkMesh.setMatrixAt(i, mtx.compose(V(tr.x, th / 2, tr.z), q.identity(), V(tr.s, th, tr.s))); });
+  let cityRT = LEVEL_R[0];
+  const treeG = (tr) => (tr.d < 90 ? 1 : smooth(0, 1, (cityRT - tr.d + 6) / 8)) || 1e-3;
   function swayTrees(T, wind) {
     const amp = 0.015 + wind * 0.006;
-    rounds.forEach((tr, i) => { const s = tr.s; e3.set(Math.sin(T * 1.3 + tr.ph) * amp, 0, Math.cos(T * 1.1 + tr.ph) * amp); roundMesh.setMatrixAt(i, mtx.compose(V(tr.x, 2.4 * s + 1.6 * s, tr.z), q.setFromEuler(e3), V(2.3 * s, 2.0 * s, 2.3 * s))); });
-    poplars.forEach((tr, i) => { const s = tr.s; e3.set(Math.sin(T * 1.6 + tr.ph) * amp * 1.4, 0, Math.cos(T * 1.2 + tr.ph) * amp * 1.4); poplarMesh.setMatrixAt(i, mtx.compose(V(tr.x, 3.2 * s + 4.6 * s, tr.z), q.setFromEuler(e3), V(1.25 * s, 10 * s, 1.25 * s))); });
+    trees.forEach((tr, i) => { const g = treeG(tr), th = (tr.type === 'poplar' ? 3.2 : 2.4) * tr.s * g; trunkMesh.setMatrixAt(i, mtx.compose(V(tr.x, th / 2, tr.z), q.identity(), V(tr.s * g, th, tr.s * g))); });
+    trunkMesh.instanceMatrix.needsUpdate = true;
+    rounds.forEach((tr, i) => { const s = tr.s * treeG(tr); e3.set(Math.sin(T * 1.3 + tr.ph) * amp, 0, Math.cos(T * 1.1 + tr.ph) * amp); roundMesh.setMatrixAt(i, mtx.compose(V(tr.x, 2.4 * s + 1.6 * s, tr.z), q.setFromEuler(e3), V(2.3 * s, 2.0 * s, 2.3 * s))); });
+    poplars.forEach((tr, i) => { const s = tr.s * treeG(tr); e3.set(Math.sin(T * 1.6 + tr.ph) * amp * 1.4, 0, Math.cos(T * 1.2 + tr.ph) * amp * 1.4); poplarMesh.setMatrixAt(i, mtx.compose(V(tr.x, 3.2 * s + 4.6 * s, tr.z), q.setFromEuler(e3), V(1.25 * s, 10 * s, 1.25 * s))); });
     roundMesh.instanceMatrix.needsUpdate = true; poplarMesh.instanceMatrix.needsUpdate = true;
   }
-  swayTrees(0, 2); trunkMesh.instanceMatrix.needsUpdate = true;
+  swayTrees(0, 2);
 
   /* ---------------- street lamps */
   const lampSpots = [];
@@ -676,16 +698,31 @@ export function mount(stage, api) {
   const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), new THREE.MeshStandardMaterial({ color: '#ff2a2a', emissive: '#ff2020', emissiveIntensity: 2 })); beacon.position.set(10, 28.8, -21); hq.add(beacon);
   const panelGeo = new THREE.BoxGeometry(3.2, 0.08, 1.8), panelMat = new THREE.MeshStandardMaterial({ color: '#1e3a5f', metalness: 0.7, roughness: 0.2 });
   for (let i = 0; i < 8; i++) { const p = new THREE.Mesh(panelGeo, panelMat); p.position.set(-11 + (i % 4) * 3.6, 20.4, -22 - Math.floor(i / 4) * 2.6); p.rotation.x = -0.35; p.castShadow = true; hq.add(p); }
-  const flagPole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 8, 8), new THREE.MeshStandardMaterial({ color: '#d1d5db', metalness: 0.8, roughness: 0.25 })); flagPole.position.set(-12.5, 23.6, -13); hq.add(flagPole);
-  const flagGeo = new THREE.PlaneGeometry(4.2, 2.8, 24, 12), flagBase = flagGeo.attributes.position.array.slice();
-  const flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ map: flagTexture(), side: THREE.DoubleSide, roughness: 0.8 })); flag.position.set(-10.35, 26, -13); flag.castShadow = true; hq.add(flag);
-  // Salim Street sign
-  { const [c, g] = canvas(1024, 256); g.fillStyle = '#0f5132'; g.fillRect(0, 0, 1024, 256); g.strokeStyle = '#fff'; g.lineWidth = 10; g.strokeRect(14, 14, 996, 228); g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = '700 84px "Noto Sans Arabic", sans-serif'; g.direction = 'rtl'; g.fillText('شەقامی سالم', 512, 112); g.direction = 'ltr'; g.font = '700 60px "Plus Jakarta Sans", sans-serif'; g.fillText('Salim Street', 512, 200);
-    const s = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.85), new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.5, side: THREE.DoubleSide })); s.position.set(-27.5, 4.4, 22.6); scene.add(s);
-    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.6, 8), poleM.material); p.position.set(-27.5, 2.3, 22.8); scene.add(p); }
+  // the Kurdistan flag: big, on a tall pole in the middle of the plaza
+  const FW = 10, FH = 6.6;
+  { const steel = new THREE.MeshStandardMaterial({ color: '#d7dbe0', metalness: 0.85, roughness: 0.22 });
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.5, 0.7, 40), new THREE.MeshStandardMaterial({ color: '#cfc6b6', roughness: 0.7 })); plinth.position.set(TABLE.x, 0.35, TABLE.z); plinth.castShadow = plinth.receiveShadow = true; scene.add(plinth);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.26, 26, 16), steel); pole.position.set(TABLE.x, 13.3, TABLE.z); pole.castShadow = true; scene.add(pole);
+    const fin = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 14), new THREE.MeshStandardMaterial({ color: '#febd11', metalness: 0.9, roughness: 0.2 })); fin.position.set(TABLE.x, 26.5, TABLE.z); scene.add(fin); }
+  const flagGeo = new THREE.PlaneGeometry(FW, FH, 40, 24), flagBase = flagGeo.attributes.position.array.slice();
+  const flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ map: flagTexture(), side: THREE.DoubleSide, roughness: 0.75 })); flag.position.set(TABLE.x + FW / 2 + 0.2, 26 - FH / 2 - 0.3, TABLE.z); flag.castShadow = true; scene.add(flag);
+  const flagSpot = new THREE.SpotLight('#fff1d6', 0, 45, 0.4, 0.6, 1.1); flagSpot.position.set(TABLE.x + 8, 1.5, TABLE.z + 12); flagSpot.target = flag; scene.add(flagSpot);
+  { const wood = new THREE.MeshStandardMaterial({ color: '#8a5a35', roughness: 0.7 }), iron = new THREE.MeshStandardMaterial({ color: '#2b2f36', metalness: 0.6, roughness: 0.4 });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.5, b = new THREE.Group(); b.position.set(TABLE.x + Math.cos(a) * 8.6, 0, TABLE.z + Math.sin(a) * 8.6); b.rotation.y = -a - Math.PI / 2;
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.6), wood); seat.position.y = 0.48; const back = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 0.08), wood); back.position.set(0, 0.8, -0.28);
+      for (const s2 of [-1, 1]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.48, 0.55), iron); l.position.set(s2 * 1.05, 0.24, 0); b.add(l); }
+      for (const m of [seat, back]) { m.castShadow = true; b.add(m); }
+      scene.add(b);
+    } }
+  // Pozaka Street signs
+  { const [c, g] = canvas(1024, 256); g.fillStyle = '#0f5132'; g.fillRect(0, 0, 1024, 256); g.strokeStyle = '#fff'; g.lineWidth = 10; g.strokeRect(14, 14, 996, 228); g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = '700 84px "Noto Sans Arabic", sans-serif'; g.direction = 'rtl'; g.fillText('شەقامی پۆزاکا', 512, 112); g.direction = 'ltr'; g.font = '700 60px "Plus Jakarta Sans", sans-serif'; g.fillText('Pozaka Street', 512, 200);
+    const signM = new THREE.MeshStandardMaterial({ map: tex(c), roughness: 0.5, side: THREE.DoubleSide });
+    for (const x of [-27.5, 27.5]) { const s2 = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.85), signM); s2.position.set(x, 4.4, 22.6); scene.add(s2);
+      const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.6, 8), poleM.material); p2.position.set(x, 2.3, 22.8); scene.add(p2); } }
 
   /* ---------------- holo-table */
-  const holo = new THREE.Group(); holo.position.copy(TABLE); scene.add(holo);
+  const holo = new THREE.Group(); holo.position.copy(ITABLE); holo.scale.setScalar(0.62); scene.add(holo);
   const tb = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.7, 0.95, 40), new THREE.MeshStandardMaterial({ color: '#1b2230', metalness: 0.6, roughness: 0.35 })); tb.position.y = 0.48; tb.castShadow = tb.receiveShadow = true; holo.add(tb);
   const holoMat = new THREE.MeshBasicMaterial({ color: '#5eead4', transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false });
   const ringTop = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.05, 8, 64), holoMat); ringTop.rotation.x = Math.PI / 2; ringTop.position.y = 0.98; holo.add(ringTop);
@@ -699,18 +736,104 @@ export function mount(stage, api) {
     const water = new THREE.Mesh(new THREE.CircleGeometry(3.85, 40), new THREE.MeshStandardMaterial({ color: '#2b6f8f', roughness: 0.05, metalness: 0.2 })); water.rotation.x = -Math.PI / 2; water.position.set(0, 0.62, 60); scene.add(water); }
   const jets = [0, 1, 2, 3, 4].map((i) => { const j = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.14, 1, 8, 1, true), new THREE.MeshBasicMaterial({ color: '#cfeeff', transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })); const a = (i / 5) * Math.PI * 2; j.position.set(i ? Math.cos(a) * 1.8 : 0, 0.6, 60 + (i ? Math.sin(a) * 1.8 : 0)); scene.add(j); return j; });
 
-  /* ---------------- stations (one desk per agent) */
-  const stations = ORDER.map((k, i) => {
-    const x = -19.25 + i * 5.5, z = -1.2 + 2.2 * (1 - (x / 19.25) ** 2);
-    const col = ROLE[k].color;
-    const desk = new THREE.Group(); desk.position.set(x, 0, z); scene.add(desk);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.08, 0.8), new THREE.MeshStandardMaterial({ color: '#f3f4f6', roughness: 0.5 })); top.position.y = 0.78; top.castShadow = top.receiveShadow = true; desk.add(top);
-    for (const s of [-1, 1]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.76, 0.7), new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.5 })); l.position.set(0.82 * s, 0.38, 0); desk.add(l); }
-    const screenMat = new THREE.MeshStandardMaterial({ color: '#0b1220', emissive: col, emissiveIntensity: 0.3 });
-    const scr = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.4, 0.03), screenMat); scr.position.set(0, 1.03, 0.12); scr.rotation.x = -0.25; desk.add(scr);
-    const pad = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.45, 56), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false })); pad.rotation.x = -Math.PI / 2; pad.position.set(0, 0.04, -0.6); desk.add(pad);
-    return { x, z, spot: V(x, 0, z - 0.95), side: V(x + 1.35, 0, z - 0.95), front: V(x + 1.35, 0, z + 1.3), screenMat, pad };
-  });
+  /* ---------------- inside Jump HQ: the team's office on the ground floor */
+  const inside = new THREE.Group(); scene.add(inside);
+  const floorTex = (() => {
+    const [c, g] = canvas(1024, 1024);
+    for (let y = 0; y < 1024; y += 64) for (let x = -R(0, 200); x < 1024;) {
+      const w = R(200, 340); g.fillStyle = `hsl(${R(24, 31)}, ${R(30, 40)}%, ${R(36, 46)}%)`; g.fillRect(x, y, w, 64);
+      for (let i = 0; i < 7; i++) { g.fillStyle = `rgba(70,40,15,${R(0.05, 0.14)})`; g.fillRect(x, y + R(3, 61), w, R(1, 2.5)); }
+      g.fillStyle = 'rgba(30,18,8,.6)'; g.fillRect(x, y, 2, 64); x += w;
+    }
+    g.fillStyle = 'rgba(30,18,8,.6)'; for (let y = 0; y < 1024; y += 64) g.fillRect(0, y, 1024, 2);
+    const t2 = tex(c, { repeat: true }); t2.repeat.set(3.2, 1.7); return t2;
+  })();
+  const recv = (m) => { m.receiveShadow = true; return m; };
+  const floor = recv(new THREE.Mesh(new THREE.PlaneGeometry(27.2, 14.3), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.32, metalness: 0.04 })));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0.04, -18.05); inside.add(floor);
+  const rug = recv(new THREE.Mesh(new THREE.CircleGeometry(4.2, 48), new THREE.MeshStandardMaterial({ color: '#1f2a3d', roughness: 0.95 }))); rug.rotation.x = -Math.PI / 2; rug.position.set(ITABLE.x, 0.05, ITABLE.z); inside.add(rug);
+  const rugRing = new THREE.Mesh(new THREE.RingGeometry(3.9, 4.05, 64), new THREE.MeshBasicMaterial({ color: '#ff6b2c' })); rugRing.rotation.x = -Math.PI / 2; rugRing.position.set(ITABLE.x, 0.06, ITABLE.z); inside.add(rugRing);
+  const wallM = new THREE.MeshStandardMaterial({ color: '#ebe7e0', roughness: 0.92, side: THREE.BackSide });
+  const backM = new THREE.MeshStandardMaterial({ color: '#172033', roughness: 0.8, side: THREE.BackSide });
+  const ceilM = new THREE.MeshStandardMaterial({ color: '#f3f1ec', roughness: 0.95, side: THREE.BackSide });
+  const glassM = new THREE.MeshStandardMaterial({ color: '#a9c8e8', roughness: 0.04, metalness: 0.3, transparent: true, opacity: 0.08, side: THREE.BackSide, depthWrite: false });
+  const shell = recv(new THREE.Mesh(new THREE.BoxGeometry(27.3, 4.65, 14.4), [wallM, wallM, ceilM, new THREE.MeshBasicMaterial({ visible: false }), glassM, backM]));
+  shell.position.set(0, 2.32, -18.05); inside.add(shell);
+  const darkM = new THREE.MeshStandardMaterial({ color: '#202734', metalness: 0.6, roughness: 0.35 });
+  for (let x = -12; x <= 12; x += 3) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.09, 4.6, 0.09), darkM); m.position.set(x, 2.3, -10.92); inside.add(m); }
+  { const m = new THREE.Mesh(new THREE.BoxGeometry(27.2, 0.09, 0.09), darkM); m.position.set(0, 3.3, -10.92); inside.add(m); }
+  // the live board, the logo and the ceiling lights
+  const ledIn = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 3.15), new THREE.MeshBasicMaterial({ map: ledTex })); ledIn.position.set(0, 2.85, -25.18); inside.add(ledIn);
+  { const fr = new THREE.Mesh(new THREE.BoxGeometry(8.7, 3.45, 0.1), darkM); fr.position.set(0, 2.85, -25.24); inside.add(fr); }
+  const logoIn = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 1.4), new THREE.MeshStandardMaterial({ map: hq.userData.sign.map, emissiveMap: hq.userData.sign.map, emissive: '#ffffff', emissiveIntensity: 0.5, transparent: true }));
+  logoIn.position.set(-13.58, 3.1, -18.6); logoIn.rotation.y = Math.PI / 2; inside.add(logoIn);
+  const ceilLightM = new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#fff4e2', emissiveIntensity: 1.3 });
+  for (const x of [-7.5, 0, 7.5]) for (const z of [-14.2, -21.2]) { const l = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.05, 0.9), ceilLightM); l.position.set(x, 4.6, z); inside.add(l); }
+  const roomLights = [[-7, -14.5], [7, -14.5], [-7, -21.5], [7, -21.5]].map(([x, z]) => { const l = new THREE.PointLight('#fff1de', 0, 15, 1.4); l.position.set(x, 4.1, z); inside.add(l); return l; });
+  // coffee bar, plants, a sofa by the window
+  const whiteM = new THREE.MeshStandardMaterial({ color: '#f5f5f4', roughness: 0.35 });
+  { const bar = recv(new THREE.Mesh(new THREE.BoxGeometry(3, 1.05, 0.7), whiteM)); bar.position.set(0, 0.53, -24.55); bar.castShadow = true; inside.add(bar);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.06, 0.8), new THREE.MeshStandardMaterial({ color: '#3b2a1e', roughness: 0.4 })); top.position.set(0, 1.08, -24.55); inside.add(top);
+    const mach = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 0.45), darkM); mach.position.set(-0.8, 1.38, -24.6); inside.add(mach);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), new THREE.MeshStandardMaterial({ color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 3 })); dot.position.set(-0.8, 1.5, -24.36); inside.add(dot);
+    for (const x of [0.2, 0.45, 0.7]) { const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.12, 12), whiteM); cup.position.set(x, 1.17, -24.45); inside.add(cup); } }
+  const potM = new THREE.MeshStandardMaterial({ color: '#d6d3d1', roughness: 0.6 }), leafIn = new THREE.MeshStandardMaterial({ color: '#3f6b2a', roughness: 0.8, flatShading: true });
+  for (const [x, z] of [[-12.8, -11.6], [12.8, -11.6], [-12.8, -24.5], [12.8, -24.5], [-2.6, -24.6], [2.6, -24.6]]) {
+    const pot = recv(new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.3, 0.7, 20), potM)); pot.position.set(x, 0.35, z); pot.castShadow = true; inside.add(pot);
+    for (let i = 0; i < 4; i++) { const l = recv(new THREE.Mesh(crownGeo, leafIn)); l.scale.set(0.42, 0.62, 0.42); l.position.set(x + R(-0.2, 0.2), 1.0 + i * 0.32, z + R(-0.2, 0.2)); inside.add(l); }
+  }
+  { const sofaM = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.9 }), sofa = new THREE.Group(); sofa.position.set(6.5, 0, -12.1); sofa.rotation.y = Math.PI;
+    const seat = recv(new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.45, 0.95), sofaM)); seat.position.y = 0.32; const back = recv(new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.7, 0.25), sofaM)); back.position.set(0, 0.75, 0.38);
+    sofa.add(seat, back); for (const x of [-1.6, 1.6]) { const arm = recv(new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.6, 0.95), sofaM)); arm.position.set(x, 0.45, 0); sofa.add(arm); } inside.add(sofa);
+    const tbl = recv(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.42, 24), whiteM)); tbl.position.set(6.5, 0.21, -13.6); inside.add(tbl); }
+  // one standing desk per agent, each with its own live screen
+  const deskTop = new THREE.MeshStandardMaterial({ color: '#f4f4f5', roughness: 0.4 });
+  const rot = (ry, lx, lz) => [lx * Math.cos(ry) + lz * Math.sin(ry), -lx * Math.sin(ry) + lz * Math.cos(ry)];
+  const desks = Object.fromEntries(ORDER.map((k) => {
+    const [x, z, f] = DESKS[k], ry = f === 1 ? Math.PI / 2 : f === -1 ? -Math.PI / 2 : 0, col = ROLE[k].color;
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; inside.add(g);
+    const top = recv(new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.06, 0.9), deskTop)); top.position.y = 1.02; top.castShadow = true; g.add(top);
+    for (const sx of [-0.85, 0.85]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.7), darkM); l.position.set(sx, 0.5, 0); g.add(l); }
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.04, 0.02), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.5 })); strip.position.set(0, 1.0, -0.46); g.add(strip);
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.32, 0.08), darkM); stand.position.set(0, 1.2, 0.24); g.add(stand);
+    const [sc, sg] = canvas(512, 288), scrTex = tex(sc);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.65), new THREE.MeshBasicMaterial({ map: scrTex })); screen.position.set(0, 1.62, 0.2); screen.rotation.set(0.08, Math.PI, 0); g.add(screen);
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.72, 0.04), darkM); bezel.position.set(0, 1.62, 0.23); bezel.rotation.x = -0.08; g.add(bezel);
+    const screen2 = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.65), screen.material); screen2.position.set(0, 1.62, 0.26); screen2.rotation.x = -0.08; g.add(screen2); // readable from the room too
+    const kb = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.025, 0.2), darkM); kb.position.set(0, 1.065, -0.12); g.add(kb);
+    const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.11, 12), new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 })); mug.position.set(0.7, 1.1, -0.1); g.add(mug);
+    const pad = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.75, 48), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })); pad.rotation.x = -Math.PI / 2; pad.position.set(0, 0.06, -0.85); g.add(pad);
+    const at = (lx, lz) => { const [dx, dz] = rot(ry, lx, lz); return V(x + dx, 0, z + dz); };
+    return [k, { ry, spot: at(0, -0.85), side: at(1.3, -0.85), front: at(1.3, 1.05), scr: [sc, sg], scrTex, scrKey: '', pad }];
+  }));
+  const BREAKS = [{ n: 'coffee', p: V(0, 0, -23.45), ry: Math.PI }, { n: 'window', p: V(-6.5, 0, -11.75), ry: 0 }, { n: 'window2', p: V(2.5, 0, -11.75), ry: 0 }, { n: 'sofa', p: V(4.6, 0, -13.2), ry: Math.PI / 2 }];
+
+  /* ---------------- drones and the build beam: the team's work out on the street */
+  const droneMat = new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.6, roughness: 0.35 });
+  const rotorMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', transparent: true, opacity: 0.5, roughness: 0.4 });
+  const drones = Object.fromEntries(DRONE_ROLES.map((k, i) => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.22, 0.8), droneMat); body.castShadow = true; g.add(body);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.34, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: ROLE[k].color, metalness: 0.3, roughness: 0.3 })); dome.position.y = 0.1; g.add(dome);
+    const rotors = [];
+    for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 1.0), droneMat); arm.position.set(x * 0.4, 0, z * 0.4); arm.rotation.y = Math.atan2(x, z); g.add(arm);
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.02, 20), rotorMat); r.position.set(x * 0.78, 0.1, z * 0.78); g.add(r); rotors.push(r);
+    }
+    const ledM = new THREE.MeshStandardMaterial({ color: ROLE[k].color, emissive: ROLE[k].color, emissiveIntensity: 2 });
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), ledM); led.position.set(0, -0.12, 0.42); g.add(led);
+    const beamM = new THREE.MeshBasicMaterial({ color: ROLE[k].color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(1.6, 4.6, 28, 1, true), beamM); beam.position.y = -2.4; g.add(beam);
+    g.scale.setScalar(2.4);
+    const home = V(-6 + i * 6, 20.1, -14.2);
+    g.position.copy(home); scene.add(g);
+    const pad = new THREE.Mesh(new THREE.RingGeometry(1.7, 2.0, 40), new THREE.MeshBasicMaterial({ color: ROLE[k].color, transparent: true, opacity: 0.7 })); pad.rotation.x = -Math.PI / 2; pad.position.set(home.x, 19.72, home.z); scene.add(pad);
+    return [k, { k, g, rotors, beamM, ledM, home, spot: null, hover: 0, idx: 0 }];
+  }));
+  const buildBeamM = new THREE.MeshBasicMaterial({ color: C(ROLE.builder.color).multiplyScalar(2.5), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const buildBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1, 10, 1, true), buildBeamM); buildBeam.frustumCulled = false; scene.add(buildBeam);
+  const beamDots = [...Array(5)].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: C('#ffd2bd').multiplyScalar(2) })); m.visible = false; scene.add(m); return m; });
+  const ROOF_OUT = V(0, 20.4, -11.2);
 
   /* ---------------- shops (the businesses the team works on) */
   const shopBodyMat = new THREE.MeshStandardMaterial({ color: '#e9e1d3', roughness: 0.85 });
@@ -811,7 +934,7 @@ export function mount(stage, api) {
         p.xz += uWind * (H - y) / aDrop.w;
         vec3 v = normalize(vec3(uWind.x, -aDrop.w, uWind.y));
         if (aEnd > 0.5) p -= v * 1.7;
-        vA = (aEnd > 0.5 ? 0.0 : 1.0) * step(aDrop.x, uCount);
+        vA = (aEnd > 0.5 ? 0.0 : 1.0) * step(aDrop.x, uCount) * (1.0 - step(-14.3, p.x) * step(p.x, 14.3) * step(-25.8, p.z) * step(p.z, -10.2) * step(p.y, 20.5));
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
       }`,
     fragmentShader: 'uniform float uOpacity; uniform vec3 uColor; varying float vA; void main(){ gl_FragColor = vec4(uColor, vA * uOpacity); }',
@@ -831,7 +954,7 @@ export function mount(stage, api) {
         p.x += sin(uTime * 0.9 + aFlake.y * 40.0) * 0.8 + uWind.x * (H - y) / aFlake.w * 0.4; p.z += cos(uTime * 0.7 + aFlake.x * 40.0) * 0.8 + uWind.y * (H - y) / aFlake.w * 0.4;
         vec4 mv = viewMatrix * vec4(p, 1.0);
         gl_PointSize = uPx * (0.22 + aFlake.w * 0.07) * 420.0 / -mv.z;
-        vA = step(aFlake.x, uCount);
+        vA = step(aFlake.x, uCount) * (1.0 - step(-14.3, p.x) * step(p.x, 14.3) * step(-25.8, p.z) * step(p.z, -10.2) * step(p.y, 20.5));
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: 'uniform float uOpacity; varying float vA; void main(){ float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(1.0, 1.0, 1.0, smoothstep(0.5, 0.15, d) * vA * uOpacity); }',
@@ -851,11 +974,12 @@ export function mount(stage, api) {
   const agents = {};
   ORDER.forEach((k, i) => {
     const r = ROLE[k], p = makePerson(r.color, { hat: r.hat, tool: r.tool, skin: ['#e0b48f', '#c99671', '#d9a77f', '#b98560', '#eac3a0', '#c48b65', '#dcae86', '#a8764f'][i], hair: ['#1b130d', '#2b1d12', '#3b2a1c', '#0f0f0f'][i % 4] });
-    p.g.position.copy(stations[i].spot); p.g.rotation.y = 0; scene.add(p.g);
+    p.g.position.copy(desks[k].spot); p.g.rotation.y = desks[k].ry; scene.add(p.g);
+    p.g.traverse((o) => { if (o.isMesh) o.receiveShadow = true; });
     const halo = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.72, 40), new THREE.MeshBasicMaterial({ color: r.color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
     halo.rotation.x = -Math.PI / 2; halo.position.y = 0.05; p.g.add(halo);
     p.g.traverse((o) => { if (o.isMesh) o.userData.agent = k; });
-    agents[k] = { key: k, i, p, st: stations[i], path: [], face: 0, task: { kind: 'idle' }, action: 'idle', moving: 0, halo, bubble: '', patrol: 0, wait: 0, visit: 0, lastPlane: 0 };
+    agents[k] = { key: k, i, p, desk: desks[k], path: [], face: 0, task: { kind: 'idle' }, action: 'idle', moving: 0, halo, bubble: '', patrol: 0, wait: 0, visit: 0, lastPlane: 0 };
   });
   const scanRings = [...Array(4)].map(() => { const m = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.05, 48), new THREE.MeshBasicMaterial({ color: ROLE.scout.color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); m.rotation.x = -Math.PI / 2; m.position.y = 0.06; scene.add(m); return { m, t: 1 }; });
   let ringIdx = 0;
@@ -878,8 +1002,9 @@ export function mount(stage, api) {
   const seg = (g, list, cur) => `<div class="mp-seg" data-g="${g}">${list.map(([k, l]) => `<button data-v="${k}" class="${cur === k ? 'on' : ''}">${esc(t(l))}</button>`).join('')}</div>`;
   hud.innerHTML = `
     <div class="mp-labels"></div>
-    <div class="mp-clock"><div class="mp-place">${esc(t('Sulaimani'))}</div><div class="mp-time">--:--</div><div class="mp-phase"></div><div class="mp-wx"></div><div class="mp-src"></div></div>
-    <button class="mp-toggle" aria-label="${esc(t('Time'))}">⚙</button>
+    <div class="mp-clock"><div class="mp-place">${esc(t('Sulaimani'))} · ${esc(t('Pozaka Street'))}</div><div class="mp-time">--:--</div><div class="mp-phase"></div><div class="mp-wx"></div><div class="mp-city"></div><div class="mp-src"></div></div>
+    <button class="mp-toggle" aria-expanded="false">☰ <span>${esc(t('Menu'))}</span></button>
+    <div class="mp-view"><button class="mp-go-in" data-act="inside">🏢 ${esc(t('Inside Jump HQ'))}</button><button class="mp-go-out" data-act="street">← ${esc(t('Back to the street'))}</button></div>
     <div class="mp-ctl">
       <div class="mp-row"><span>${esc(t('Time'))}</span>${seg('time', TIMES, prefs.time)}</div>
       <div class="mp-row"><span>${esc(t('Weather'))}</span>${seg('wx', WXS, prefs.wx)}</div>
@@ -891,16 +1016,17 @@ export function mount(stage, api) {
     <div class="mp-sleep" hidden>🌙 ${esc(t('Sleep mode: the team works alone'))}</div>`;
   const $h = (s) => hud.querySelector(s);
   const labelsEl = $h('.mp-labels');
-  $h('.mp-toggle').onclick = () => hud.classList.toggle('open');
+  $h('.mp-toggle').onclick = (e) => { const o = hud.classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', o); };
   hud.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     const g = b.closest('.mp-seg')?.dataset.g;
     if (g) { prefs[g] = b.dataset.v; savePrefs(); b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); if (g === 'time' && b.dataset.v === 'lapse') lapseStart = performance.now(); if (g === 'team') { demoStart = performance.now(); sync(); } if (g === 'q') applyQuality(); return; }
     const a = b.dataset.act;
     if (a === 'rotate') { prefs.rotate = !prefs.rotate; controls.autoRotate = prefs.rotate; b.classList.toggle('on', prefs.rotate); savePrefs(); }
-    if (a === 'reset') { sel = null; showCard(); flyTo(V(0, 3, 6), V(38, 58, 112)); }
+    if (a === 'reset' || a === 'street') goStreet();
+    if (a === 'inside') goInside();
     if (a === 'full') { if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen?.(); }
-    if (b.dataset.agent) select({ type: 'agent', key: b.dataset.agent });
+    if (b.dataset.agent) { sel = { type: 'agent', key: b.dataset.agent, follow: true }; goInside(b.dataset.agent); showCard(); }
     if (b.dataset.close !== undefined) { sel = null; showCard(); }
   });
 
@@ -934,6 +1060,23 @@ export function mount(stage, api) {
   let fly = null, sel = null;
   function flyTo(target, pos) { fly = { t0: performance.now(), from: controls.target.clone(), to: target.clone(), pFrom: camera.position.clone(), pTo: pos || target.clone().add(camera.position.clone().sub(controls.target).setLength(34)) }; }
   controls.addEventListener('start', () => { fly = null; if (sel) sel.follow = false; });
+  let view = 'street';
+  const STREET = { t: V(0, 3, 6), p: V(38, 58, 112) }, ROOM = { t: V(-1.5, 1.2, -18.8), p: V(10.2, 4.0, -11.6) };
+  const clampRoom = (v, pad = 0.3) => v.set(clamp(v.x, -13.2 + pad, 13.2 - pad), clamp(v.y, 0.6, 4.25), clamp(v.z, -24.8 + pad, -11.25));
+  function setLimits() {
+    const inn = view === 'inside';
+    controls.minDistance = inn ? 1.2 : 12; controls.maxDistance = inn ? 11 : 300; controls.maxPolarAngle = inn ? 1.65 : 1.42;
+    controls.autoRotate = !inn && !!prefs.rotate; hud.classList.toggle('in', inn);
+  }
+  function goInside(k) {
+    view = 'inside'; setLimits();
+    if (k) {
+      const a = agents[k], p = a.p.g.position, ry = a.desk.ry;
+      const f = V(Math.sin(ry), 0, Math.cos(ry)), side = V(Math.cos(ry), 0, -Math.sin(ry));
+      flyTo(V(p.x + f.x * 0.5, 1.45, p.z + f.z * 0.5), clampRoom(V(p.x + f.x * 3.9 + side.x * 2.2, 2.75, p.z + f.z * 3.9 + side.z * 2.2)));
+    } else flyTo(ROOM.t, ROOM.p);
+  }
+  function goStreet() { view = 'street'; setLimits(); sel = null; showCard(); flyTo(STREET.t, STREET.p); }
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let down = null;
   renderer.domElement.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
@@ -941,20 +1084,24 @@ export function mount(stage, api) {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects([...Object.values(agents).map((a) => a.p.g), ...shops.map((s) => s.g)], true)[0];
-    if (hit?.object.userData.agent) select({ type: 'agent', key: hit.object.userData.agent });
+    if (view === 'inside') {
+      const hit = ray.intersectObjects(Object.values(agents).map((a) => a.p.g), true)[0];
+      if (hit?.object.userData.agent) { sel = { type: 'agent', key: hit.object.userData.agent, follow: true }; goInside(sel.key); showCard(); }
+      return;
+    }
+    const hit = ray.intersectObjects([hqBody, lobby, ...shops.map((s) => s.g)], true)[0];
+    if (hit && (hit.object === hqBody || hit.object === lobby)) goInside();
     else if (hit && hit.object.userData.shop !== undefined && shops[hit.object.userData.shop].lead) select({ type: 'shop', i: hit.object.userData.shop });
   });
   renderer.domElement.addEventListener('pointermove', (e) => {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(Object.values(agents).map((a) => a.p.g), true)[0];
+    const hit = ray.intersectObjects(view === 'inside' ? Object.values(agents).map((a) => a.p.g) : [hqBody, lobby, ...shops.filter((x) => x.lead).map((x) => x.g)], true)[0];
     renderer.domElement.style.cursor = hit ? 'pointer' : '';
   });
   function select(s) {
     sel = { ...s, follow: true };
-    const pos = s.type === 'agent' ? agents[s.key].p.g.position.clone().setY(1.5) : V(shops[s.i].x, 6, SHOP_Z + 4);
-    flyTo(pos);
+    flyTo(V(shops[s.i].x, 6, SHOP_Z + 4));
     showCard();
   }
 
@@ -1040,7 +1187,48 @@ export function mount(stage, api) {
       a.bubble = run ? (run.demo || eventLine(run)) : q ? `${t('Waiting')} (${q})` : '';
     }
   }
-  function sync() { st = api.getState(); syncShops(); syncAgents(); updateTeamBar(); if (sel) showCard(); hud.querySelector('.mp-sleep').hidden = st.mode !== 'sleep'; }
+  function demoCount() {
+    const mid = st.config?.market_id;
+    return st.sites.filter((x) => { const l = st.leads.find((y) => y.id === x.lead_id); return l && (!mid || l.market_id === mid); }).length;
+  }
+  // each desk screen shows what its agent is doing right now
+  function drawScreen(a, names) {
+    const busy = !['idle', 'queued'].includes(a.task.kind), key = `${a.task.kind}|${a.bubble}|${names[a.key]}`;
+    if (a.desk.scrKey === key) return;
+    a.desk.scrKey = key;
+    const [, g] = a.desk.scr, col = ROLE[a.key].color;
+    g.fillStyle = '#0b1220'; g.fillRect(0, 0, 512, 288);
+    g.fillStyle = col; g.fillRect(0, 0, 512, 48);
+    g.fillStyle = '#0b1220'; g.font = '800 26px "Plus Jakarta Sans", "Noto Sans Arabic", sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'left'; g.direction = 'ltr';
+    g.fillText(`${ROLE[a.key].icon} ${names[a.key] || a.key}`, 16, 25);
+    const stx = busy ? t('Working') : a.task.kind === 'queued' ? t('Waiting') : t('Ready');
+    g.font = '700 20px "Plus Jakarta Sans", "Noto Sans Arabic", sans-serif';
+    const sw = g.measureText(stx).width + 24;
+    g.fillStyle = '#0b1220'; roundRect(g, 496 - sw, 11, sw, 28, 14); g.fill(); g.fillStyle = busy ? '#4ade80' : '#cbd5e1'; g.fillText(stx, 508 - sw, 25);
+    const text = a.bubble || (busy ? '' : t('Ready')), rtl = /[؀-ۿ]/.test(text);
+    g.fillStyle = '#f1f5f9'; g.font = '600 27px "Plus Jakarta Sans", "Noto Sans Arabic", sans-serif'; g.direction = rtl ? 'rtl' : 'ltr'; g.textAlign = rtl ? 'right' : 'left';
+    let line = '', y = 92;
+    for (const w of text.split(/\s+/)) {
+      const tt = line ? `${line} ${w}` : w;
+      if (g.measureText(tt).width > 470 && line) { g.fillText(line, rtl ? 496 : 16, y); line = w; y += 36; if (y > 170) { line += '…'; break; } } else line = tt;
+    }
+    if (line) g.fillText(line, rtl ? 496 : 16, y);
+    g.direction = 'ltr'; g.textAlign = 'left';
+    if (busy) for (let i = 0; i < 5; i++) { g.fillStyle = `${col}${['cc', '99', '77', '55', '33'][i]}`; g.fillRect(16, 206 + i * 14, 80 + (hashStr(a.bubble + i) % 340), 7); }
+    a.desk.scrTex.needsUpdate = true;
+  }
+  function sync() {
+    st = api.getState(); syncShops(); syncAgents(); updateTeamBar();
+    const demos = demoCount();
+    cityLevel = clamp(1 + Math.floor(demos / DEMOS_PER_LEVEL), 1, LEVEL_R.length);
+    const names = Object.fromEntries((st.agents || []).map((x) => [x.key, x.name]));
+    for (const k of ORDER) drawScreen(agents[k], names);
+    const left = cityLevel < LEVEL_R.length ? DEMOS_PER_LEVEL * cityLevel - demos : 0;
+    setHTML($h('.mp-city'), `🏙️ ${esc(t('City level'))} ${cityLevel}/${LEVEL_R.length} · ${left ? `${left} ${esc(t('more demos grow the city'))}` : esc(t('The city is full size'))}`);
+    if (sel) showCard();
+    hud.querySelector('.mp-sleep').hidden = st.mode !== 'sleep';
+  }
+
 
   function updateTeamBar() {
     const names = Object.fromEntries((st.agents || []).map((a) => [a.key, a.name]));
@@ -1069,55 +1257,78 @@ export function mount(stage, api) {
     setHTML(el, html);
   }
 
-  /* ---------------- agent movement */
-  const inPlaza = (p) => Math.abs(p.x) < 26 && p.z < 19.8;
+  /* ---------------- agent movement (inside the office) */
   function route(a, to) {
-    const from = a.p.g.position, pts = [];
-    const atDesk = from.distanceTo(a.st.spot) < 0.6;
-    if (atDesk) pts.push(a.st.side.clone(), a.st.front.clone());
-    const start = atDesk ? a.st.front : from;
-    const toDesk = to.distanceTo(a.st.spot) < 0.1;
-    const end = toDesk ? a.st.front : to;
-    if (!(inPlaza(start) && inPlaza(end))) {
-      pts.push(V(inPlaza(start) ? clamp(start.x, -23, 23) : start.x, 0, WALK_Z));
-      pts.push(V(inPlaza(end) ? clamp(end.x, -23, 23) : end.x, 0, WALK_Z));
-    }
-    // walk round the holo-table
-    const last = pts.length ? pts[pts.length - 1] : start;
-    const seg = new THREE.Line3(last.clone(), end.clone()), cp = V();
-    seg.closestPointToPoint(TABLE, true, cp);
-    if (cp.distanceTo(TABLE) < 3.6 && end.distanceTo(TABLE) > 4.5) pts.push(V(TABLE.x + (last.x + end.x >= 0 ? 4.6 : -4.6), 0, TABLE.z));
+    const from = a.p.g.position, d = a.desk, pts = [];
+    if (from.distanceTo(d.spot) < 0.4) pts.push(d.side.clone(), d.front.clone());
+    const toDesk = to.distanceTo(d.spot) < 0.05;
+    const end = toDesk ? d.front : to;
+    const last = pts.length ? pts[pts.length - 1] : from.clone();
+    const cp = V(); new THREE.Line3(last.clone(), end.clone()).closestPointToPoint(ITABLE, true, cp);
+    if (cp.distanceTo(ITABLE) < 2.6 && end.distanceTo(ITABLE) > 3) pts.push(V(ITABLE.x + (last.x + end.x >= 0 ? 3.3 : -3.3), 0, ITABLE.z + ((last.z + end.z) / 2 > ITABLE.z ? 1.5 : -1.5)));
     pts.push(end.clone());
-    if (toDesk) pts.push(a.st.side.clone(), a.st.spot.clone());
+    if (toDesk) pts.push(d.side.clone(), d.spot.clone());
     return pts;
   }
   function goal(a, pos, face, action, key) {
     if (a.goalKey === key) return;
-    a.goalKey = key; a.path = route(a, pos); a.goalFace = face; a.goalAction = action;
-    a.fast = a.p.g.position.distanceTo(pos) > 24;
+    a.goalKey = key; a.goalFace = face; a.goalAction = action;
+    a.path = a.p.g.position.distanceTo(pos) < 0.3 ? [] : route(a, pos);
   }
-  const doorOf = (s, a) => V(s.x + (a.i - 3.5) * 0.55, 0, DOOR_Z);
   function think(a, dt, T, night) {
-    const k = a.task.kind, tg = a.task.targets || [];
-    if (k === 'idle' || k === 'queued' || k === 'write') { goal(a, a.st.spot, 0, k === 'write' ? 'type' : k === 'queued' ? 'wait' : night > 0.6 ? 'sleep' : 'idle', `desk-${k}`); return; }
-    if (k === 'table') { const ang = { opportunity: -2.3, strategist: -1.57, reviewer: -0.84 }[a.key] || 0; const p = V(TABLE.x + Math.cos(ang) * 3.4, 0, TABLE.z + Math.sin(ang) * 3.4); goal(a, p, Math.atan2(TABLE.x - p.x, TABLE.z - p.z), 'gesture', 'table'); return; }
-    if (k === 'scout') {
-      if (!a.path.length) { a.wait -= dt; if (a.wait <= 0) { a.patrol++; const xs = [...SLOT_X, -120, 120, -100, 100]; const x = xs[Math.floor(h2(a.patrol, 7) * xs.length)]; goal(a, V(x + R(-2, 2), 0, x === Math.round(x) && Math.abs(x) >= 100 ? WALK_Z : DOOR_Z + 0.4), Math.PI, 'scan', `scout-${a.patrol}`); a.wait = 2.8; } }
+    const k = a.task.kind, d = a.desk;
+    if (k === 'table') {
+      const ang = { opportunity: Math.PI, strategist: -Math.PI / 2, reviewer: 0 }[a.key] ?? 0, p = V(ITABLE.x + Math.cos(ang) * 2.4, 0, ITABLE.z + Math.sin(ang) * 2.4);
+      goal(a, p, Math.atan2(ITABLE.x - p.x, ITABLE.z - p.z), 'gesture', 'table');
       return;
     }
-    const list = tg.length ? tg : [shops[(a.i + Math.floor(T / 12)) % shops.length]];
-    if (k === 'visit' && list.length > 1 && !a.path.length) { a.visit += dt; if (a.visit > 7) { a.visit = 0; a.cycle = ((a.cycle || 0) + 1) % list.length; } }
-    const s = list[(a.cycle || 0) % list.length];
-    goal(a, doorOf(s, a), Math.PI, k === 'build' ? 'hammer' : a.key === 'closer' ? 'talk' : 'inspect', `${k}-${s.i}`);
+    if (k === 'idle' && night < 0.6) { // free time: now and then a coffee, the window or the sofa
+      if (!a.goalKey) { goal(a, d.spot, d.ry, 'idle', 'desk-idle'); a.wait = R(6, 30); }
+      if (a.path.length) return;
+      a.wait -= dt;
+      if (a.wait > 0) return;
+      if (a.goalKey.startsWith('break')) { goal(a, d.spot, d.ry, 'idle', 'desk-idle'); a.wait = R(25, 45); }
+      else { const b = BREAKS[(a.i + Math.floor(T / 40)) % BREAKS.length], p = b.p.clone(); p.x += ((a.i % 3) - 1) * 0.9; goal(a, p, b.ry, 'idle', `break-${b.n}-${a.i}`); a.wait = R(8, 14); }
+      return;
+    }
+    const act = k === 'idle' ? 'sleep' : k === 'queued' ? 'wait' : { investigator: 'inspect', closer: 'talk' }[a.key] || 'type';
+    goal(a, d.spot, d.ry, act, `desk-${act}`);
   }
   function moveAgent(a, dt) {
     const p = a.p.g.position;
     if (a.path.length) {
-      const tg = a.path[0], dx = tg.x - p.x, dz = tg.z - p.z, d = Math.hypot(dx, dz), sp = a.fast ? 6.2 : 3.4;
-      if (d < 0.12) a.path.shift();
-      else { const kk = Math.min(1, (sp * dt) / d); p.x += dx * kk; p.z += dz * kk; a.p.g.rotation.y = turnTo(a.p.g.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
+      const tg = a.path[0], dx = tg.x - p.x, dz = tg.z - p.z, dd = Math.hypot(dx, dz), sp = 2.6;
+      if (dd < 0.08) a.path.shift();
+      else { const kk = Math.min(1, (sp * dt) / dd); p.x += dx * kk; p.z += dz * kk; a.p.g.rotation.y = turnTo(a.p.g.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 10)); }
       a.moving = a.path.length ? sp : 0;
     } else { a.moving = 0; a.p.g.rotation.y = turnTo(a.p.g.rotation.y, a.goalFace ?? 0, Math.min(1, dt * 5)); }
+  }
+  // drones fly out from the roof to the shops while their agent works at the desk
+  function droneTask(k) {
+    const a = agents[k];
+    if (['idle', 'queued'].includes(a.task.kind)) return null;
+    if (k === 'scout') return (i) => V(clamp(Math.sin(i * 2.3) * (cityR - 14), -150, 150), 9, 27 + Math.cos(i * 1.7) * 3);
+    const tg = (a.task.targets || []).length ? a.task.targets : shops.filter((x) => x.lead);
+    if (!tg.length) return null;
+    return (i) => { const s2 = tg[i % tg.length]; return V(s2.x, k === 'closer' ? 7 : 8.5, SHOP_Z + 8.5); };
+  }
+  function flyDrone(d, dt, T, night) {
+    const task = droneTask(d.k), p = d.g.position;
+    if (!task) d.spot = null;
+    else if (!d.spot) { d.idx++; d.spot = task(d.idx); d.hover = d.k === 'scout' ? 4 : 7; d.scanned = false; }
+    const tgt = d.spot || d.home, dx = tgt.x - p.x, dz = tgt.z - p.z, horiz = Math.hypot(dx, dz), cruise = 21;
+    p.y += clamp((horiz > 1.5 ? Math.max(cruise, tgt.y) : tgt.y) - p.y, -5 * dt, 6 * dt);
+    const travel = horiz > 0.05 && (p.y > cruise - 1.5 || horiz < 1.5);
+    if (travel) { const sp = Math.min(horiz, 13 * dt); p.x += (dx / horiz) * sp; p.z += (dz / horiz) * sp; }
+    const there = d.spot && horiz < 0.4 && Math.abs(p.y - tgt.y) < 0.4;
+    if (there) { d.hover -= dt; p.y += Math.sin(T * 3 + d.idx) * 0.006; if (d.hover <= 0) d.spot = null; } // next spot on the next frame
+    d.g.rotation.x = lerp(d.g.rotation.x, travel && horiz > 1 ? (dz / horiz) * 0.22 : 0, Math.min(1, dt * 4));
+    d.g.rotation.z = lerp(d.g.rotation.z, travel && horiz > 1 ? -(dx / horiz) * 0.22 : 0, Math.min(1, dt * 4));
+    const flying = p.distanceTo(d.home) > 0.2;
+    d.rotors.forEach((r) => (r.rotation.y += (flying || task ? 45 : 0) * dt));
+    d.beamM.opacity = lerp(d.beamM.opacity, there && d.k !== 'closer' ? 0.1 + night * 0.12 : 0, Math.min(1, dt * 4));
+    d.ledM.emissiveIntensity = flying ? (Math.sin(T * 8) > 0 ? 4 : 0.6) : 1;
+    if (there && d.k === 'scout' && !d.scanned) { d.scanned = true; for (let j = 0; j < 2; j++) { const r = scanRings[ringIdx++ % scanRings.length]; r.t = -j * 0.35; r.m.position.set(p.x, 0.07, p.z); } }
   }
 
   /* ---------------- time + weather state */
@@ -1211,12 +1422,14 @@ export function mount(stage, api) {
     beacon.material.emissiveIntensity = (Math.sin(T * 3) > 0.6 ? 6 : 0.4) * (0.4 + night);
     led.material.color.setScalar(0.9 - night * 0.15);
     for (const s of shops) { s.glassMat.emissiveIntensity = 0.1 + lightsOn * 0.55; s.signMat.emissiveIntensity = 0.05 + night * 0.55; }
-    for (const st2 of stations) st2.screenMat.emissiveIntensity = 0.35 + night * 1.2;
+    const inn = view === 'inside';
+    roomLights.forEach((l) => (l.intensity = inn ? 16 : 0)); ceilLightM.emissiveIntensity = 1.1 + night * 0.4;
+    flagSpot.intensity = night * 70;
     // ground wetness and snow
     groundMat.roughness = lerp(0.95, 0.4, wet); groundMat.color.setScalar(lerp(1, 0.72, wet));
     puddles.material.opacity = wet * 0.75; puddles.visible = wet > 0.01;
     snowLayer.material.opacity = snowCover * 0.95; snowLayer.visible = snowCover > 0.01;
-    mats.snow.opacity = snowCover; if (staticMesh.snow) staticMesh.snow.visible = snowCover > 0.01;
+    mats.snow.opacity = snowCover; growCity(dt, snowCover); cityRT = cityR;
     if (frameN % 30 === 0) paintMountains(Math.min(seasonLine, lerp(seasonLine, 0.18, snowCover)));
     // clouds
     const wind = W.wind, windAng = ((live.dir ?? 270) + 180) * RAD, wx = Math.sin(windAng) * wind, wz = -Math.cos(windAng) * wind;
@@ -1238,8 +1451,8 @@ export function mount(stage, api) {
     boltMat.opacity = flash > 0.35 ? 1 : 0;
     swayTrees(T, wind);
     // flag
-    { const p = flagGeo.attributes.position, amp = 0.12 + Math.min(wind, 14) * 0.02;
-      for (let i = 0; i < p.count; i++) { const x = flagBase[i * 3], y = flagBase[i * 3 + 1], k2 = (x + 2.1) / 4.2; p.setZ(i, Math.sin(x * 1.7 - T * (4 + wind * 0.3) + y * 0.4) * amp * k2); }
+    { const p = flagGeo.attributes.position, amp = 0.35 + Math.min(wind, 14) * 0.05;
+      for (let i = 0; i < p.count; i++) { const x = flagBase[i * 3], y = flagBase[i * 3 + 1], k2 = (x + FW / 2) / FW; p.setZ(i, (Math.sin(x * 0.75 - T * (3 + wind * 0.25) + y * 0.18) + 0.35 * Math.sin(x * 1.9 - T * 5.1)) * amp * k2); }
       p.needsUpdate = true; if (frameN % 2 === 0) flagGeo.computeVertexNormals(); }
     // fountain
     jets.forEach((j, i) => { const h = (i ? 1.4 : 3.2) * (0.9 + Math.sin(T * 6 + i) * 0.08); j.scale.y = h; j.position.y = 0.6 + h / 2; });
@@ -1255,16 +1468,18 @@ export function mount(stage, api) {
       const a = agents[k];
       think(a, dt, T, night); moveAgent(a, dt);
       const act = a.moving ? 'walk' : a.goalAction || 'idle';
-      animatePerson(a.p, dt, T, { moving: a.moving, action: act, rain: W.rain });
+      animatePerson(a.p, dt, T, { moving: a.moving, action: act, rain: 0 });
       const busy = !['idle', 'queued'].includes(a.task.kind);
       a.halo.material.opacity = busy ? 0.45 + Math.sin(T * 4) * 0.25 : 0;
-      a.st.pad.material.opacity = busy ? 0.15 : 0.35 + Math.sin(T * 2 + a.i) * 0.1;
-      a.st.screenMat.emissiveIntensity += a.task.kind === 'write' ? Math.abs(Math.sin(T * 9)) * 0.6 : 0;
-      if (k === 'scout' && act === 'scan' && T % 0.8 < dt) { const r = scanRings[ringIdx++ % scanRings.length]; r.t = 0; r.m.position.set(a.p.g.position.x, 0.06, a.p.g.position.z); }
-      if (a.task.kind === 'write' && T - a.lastPlane > 3.2) { a.lastPlane = T; const s = (a.task.targets || [])[0] || shops[Math.floor(R(0, 8))]; const m = new THREE.Mesh(planeGeo, planeMat); m.position.copy(a.p.g.position).setY(1.4); scene.add(m); planes.push({ m, from: m.position.clone(), to: V(s.x, 6, SHOP_Z + 5.5), t: 0 }); }
-      if (a.task.kind === 'build' && act === 'hammer' && rnd() < 0.5) { const s = a.task.targets?.[0]; if (s) emitSpark(a.p.g.position.x + R(-0.4, 0.4), 1.6, a.p.g.position.z - 0.5); }
+      a.desk.pad.material.opacity = busy ? 0.45 + Math.sin(T * 4) * 0.2 : 0.18;
+      if (a.task.kind === 'write' && T - a.lastPlane > 3.2) { a.lastPlane = T; const s = (a.task.targets || [])[0] || shops.find((x) => x.lead) || shops[0]; const m = new THREE.Mesh(planeGeo, planeMat); m.position.copy(ROOF_OUT); m.scale.setScalar(2.2); scene.add(m); planes.push({ m, from: ROOF_OUT.clone(), to: V(s.x, 6, SHOP_Z + 5.5), t: 0 }); }
     }
-    for (const r of scanRings) { r.t = Math.min(1, r.t + dt * 0.7); const s = 1 + r.t * 9; r.m.scale.set(s, s, s); r.m.material.opacity = (1 - r.t) * 0.7; }
+    for (const d of Object.values(drones)) flyDrone(d, dt, T, night);
+    { const b = agents.builder, s = b.task.kind === 'build' ? b.task.targets?.[0] : null;
+      buildBeamM.opacity = lerp(buildBeamM.opacity, s ? 0.55 + Math.sin(T * 6) * 0.2 : 0, dt * 3); buildBeam.visible = buildBeamM.opacity > 0.01;
+      if (s) { const to = V(s.x, 13.4, SHOP_Z + 2.5), dir = to.clone().sub(ROOF_OUT); buildBeam.position.copy(ROOF_OUT).addScaledVector(dir, 0.5); buildBeam.scale.set(1, dir.length(), 1); buildBeam.quaternion.setFromUnitVectors(V(0, 1, 0), dir.normalize()); }
+      beamDots.forEach((m, i) => { m.visible = !!s && buildBeam.visible; if (s) m.position.lerpVectors(ROOF_OUT, V(s.x, 13.4, SHOP_Z + 2.5), (T * 0.7 + i / beamDots.length) % 1); }); }
+    for (const r of scanRings) { r.t = Math.min(1, r.t + dt * 0.7); const s = 1 + Math.max(0, r.t) * 9; r.m.scale.set(s, s, s); r.m.material.opacity = r.t < 0 ? 0 : (1 - r.t) * 0.7; }
     for (let i = planes.length - 1; i >= 0; i--) {
       const pl = planes[i]; pl.t += dt / 2.6; const k2 = Math.min(1, pl.t);
       const pos = pl.from.clone().lerp(pl.to, k2); pos.y += Math.sin(k2 * Math.PI) * 9;
@@ -1301,7 +1516,8 @@ export function mount(stage, api) {
     }
     for (const pd of peds) {
       const g = pd.p.g; g.position.x += pd.dir * pd.v * dt; g.rotation.y = pd.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-      if (Math.abs(g.position.x) > 160) { pd.dir *= -1; g.position.x = clamp(g.position.x, -160, 160); }
+      const lim = Math.min(160, cityR - 6);
+      if (Math.abs(g.position.x) > lim) { pd.dir = -Math.sign(g.position.x); g.position.x = clamp(g.position.x, -lim, lim); }
       animatePerson(pd.p, dt, T, { moving: pd.v, rain: W.rain });
       g.visible = W.storm < 0.7 || pd.p.ph % 2 < 1;
     }
@@ -1310,7 +1526,10 @@ export function mount(stage, api) {
     // ---- camera
     if (fly) { const k2 = smooth(0, 1, (performance.now() - fly.t0) / 1200); controls.target.lerpVectors(fly.from, fly.to, k2); camera.position.lerpVectors(fly.pFrom, fly.pTo, k2); if (k2 >= 1) fly = null; }
     else if (sel?.follow && sel.type === 'agent') { const p = agents[sel.key].p.g.position; const d = V(p.x, 1.5, p.z).sub(controls.target); controls.target.add(d.multiplyScalar(0.08)); camera.position.add(d); }
+    const fov = view === 'inside' ? 60 : 42;
+    if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, Math.min(1, dt * 3)); camera.updateProjectionMatrix(); }
     controls.update();
+    if (view === 'inside' && !fly) { clampRoom(camera.position, 0.15); clampRoom(controls.target, 0.6); }
     composer.render(dt);
     // ---- labels
     const w = stage.clientWidth, h = stage.clientHeight;
@@ -1325,17 +1544,18 @@ export function mount(stage, api) {
       const a = agents[k], el = label(`a-${k}`, 'mp-a');
       const zz = a.goalAction === 'sleep' && !a.moving ? 'Zz' : '';
       const bub = a.bubble || zz, busyA = !['idle', 'queued'].includes(a.task.kind);
-      const full = camDist < 95 || busyA || sel?.key === k;
+      const full = true;
+      if (view !== 'inside') { el.style.display = 'none'; continue; }
       setHTML(el, `<span class="mp-n" style="--c:${ROLE[k].color}"><i>${ROLE[k].icon}</i>${full ? esc(names[k] || k) : ''}</span>${bub && camDist < 170 ? `<span class="mp-bub" dir="auto">${esc(bub.length > 70 ? `${bub.slice(0, 68)}…` : bub)}</span>` : ''}`);
       el.classList.toggle('busy', busyA);
-      put(el, labelV.copy(a.p.g.position).setY(2.75));
+      put(el, labelV.copy(a.p.g.position).setY(2.6));
     }
     for (const s of shops) {
       const el = label(`s-${s.i}`, 'mp-s');
       if (!s.lead) { el.style.display = 'none'; continue; }
       const k2 = s.building ? 'building' : s.checking && s.status === 'none' ? 'checking' : s.status;
       setHTML(el, `<span class="mp-pill ${STATUS[k2]?.cls || ''}">${esc(statusText(k2))}</span><b dir="auto">${esc(s.lead.business)}</b>`);
-      put(el, labelV.set(s.x, 10.2, SHOP_Z + 5), camDist < 260);
+      put(el, labelV.set(s.x, 10.2, SHOP_Z + 5), camDist < 260 && view !== 'inside');
     }
     // ---- clock
     if (now - clockAt > 400) {

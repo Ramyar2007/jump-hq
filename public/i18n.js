@@ -501,6 +501,13 @@ const ROWS = [
   ['Review: approved', 'پێداچوونەوە: پەسەندکرا', 'المراجعة: تمت الموافقة'],
   ['Building the demo website', 'دروستکردنی ماڵپەڕی نموونە', 'بناء الموقع التجريبي'],
   ['Writing the WhatsApp message in Sorani', 'نووسینی نامەی واتسئاپ بە سۆرانی', 'كتابة رسالة واتساب بالسورانية'],
+  ['Pozaka Street', 'شەقامی پۆزاکا', 'شارع پوزاكا'],
+  ['Menu', 'مینیو', 'القائمة'],
+  ['Inside Jump HQ', 'ناو Jump HQ', 'داخل Jump HQ'],
+  ['Back to the street', 'گەڕانەوە بۆ شەقام', 'العودة إلى الشارع'],
+  ['City level', 'ئاستی شار', 'مستوى المدينة'],
+  ['more demos grow the city', 'دیمۆی تر شارەکە گەورە دەکات', 'نماذج أخرى تكبّر المدينة'],
+  ['The city is full size', 'شارەکە بە تەواوی گەورە بووە', 'المدينة بحجمها الكامل'],
 ];
 
 export const DICT = { ckb: {}, ar: {} };
