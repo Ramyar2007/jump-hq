@@ -158,7 +158,7 @@ export class Grow {
       // a slide is the words for our template ({headline, body, ...}) or, for old runs, an HTML file name
       const slides = (Array.isArray(raw.slides) ? raw.slides : [raw.slide || raw.html]).filter(Boolean).map((x) => (typeof x === 'object' ? x : String(x))).slice(0, format === 'video' ? 4 : 1);
       const p = {
-        id: id('post'), run_id: runRec.id, n: i + 1, format, slides,
+        id: id('post'), run_id: runRec.id, n: i + 1, format, slides, brief: String(runRec.input?.brief || '').slice(0, 600),
         title: String(raw.title || '').slice(0, 80), caption: String(raw.caption || '').slice(0, 2200),
         hashtags: (Array.isArray(raw.hashtags) ? raw.hashtags : String(raw.hashtags || '').split(/\s+/)).map((h) => String(h).replace(/^#?/, '#')).filter((h) => h.length > 1).slice(0, 15),
         scheduled_at: Number.isNaN(Date.parse(raw.scheduled_at)) ? new Date(Date.now() + (i + 1) * 864e5).toISOString() : new Date(raw.scheduled_at).toISOString(),
@@ -211,7 +211,7 @@ export class Grow {
   async review(pid) {
     let p = this.get(pid);
     if (!p) return;
-    const v = await this.judge.judge('post', { caption: p.caption, hashtags: p.hashtags, text: this.text(p), format: p.format });
+    const v = await this.judge.judge('post', { caption: p.caption, hashtags: p.hashtags, text: this.text(p), format: p.format, brief: p.brief });
     p = this.get(pid);
     if (!p || p.status === 'discarded') return;
     const patch = { judge: v, status: 'pending' };

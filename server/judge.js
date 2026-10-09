@@ -99,7 +99,7 @@ Check: 1) every claim about the business is backed by the facts above (no invent
     return `${common}
 
 ITEM: a ${item.format === 'video' ? 'short video' : 'picture'} post for OUR OWN social media pages, about to be posted publicly.
-Who we are: ${cfg.company.name}. What we sell: ${cfg.profile?.what || ''}. Our offer: ${ctx.offer}
+Who we are: ${cfg.company.name}. What we sell: ${cfg.profile?.what || ''}. Our offer: ${ctx.offer}${item.brief ? `\nThe owner asked for these posts to be about: "${item.brief}". Promoting that is on purpose, even if it is not in "What we sell"; still check every claim.` : ''}
 Expected language: ${ctx.language} (English is also fine).
 Caption:
 """
