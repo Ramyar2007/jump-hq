@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
-import { Home, Users, Monitor, MessageSquare, Settings } from 'lucide-react-native';
+import { Home, Users, Monitor, MessageSquare, Megaphone, Settings } from 'lucide-react-native';
 import { useApi } from '@/lib/api';
 import { C } from '@/lib/theme';
 import { useFont, useRtl } from '@/components/ui';
@@ -12,12 +12,14 @@ export default function TabsLayout() {
   const rtl = useRtl();
   const msgs = data ? data.approvals.filter((a) => a.status === 'pending' || (a.status === 'approved' && ['email', 'whatsapp'].includes(a.type))).length : 0;
   const demos = data ? data.leads.filter((l) => l.stage === 'demo_built' && data.sites.some((s) => (s.lead_id === l.id || s.slug === l.demo?.slug) && !s.public_url)).length : 0;
+  const posts = data ? ((data as any).posts || []).filter((p: any) => p.status === 'pending').length : 0;
   const sleep = data?.mode === 'sleep';
   const tabs = [
     ['index', t('Home'), Home, 0],
     ['businesses', t('Businesses'), Users, 0],
     ['demos', t('Demos'), Monitor, demos],
     ['messages', t('Messages'), MessageSquare, msgs],
+    ['grow', t('Grow'), Megaphone, posts],
     ['settings', t('Settings'), Settings, 0],
   ] as const;
   const order = rtl ? [...tabs].reverse() : tabs;
