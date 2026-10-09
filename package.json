@@ -1,0 +1,26 @@
+{
+  "name": "agency-hq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jump Agency HQ: a control room for Claude Code agents that find, build for, and win clients.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "check": "node scripts/selftest.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.22.3",
+    "nodemailer": "^10.0.15",
+    "ws": "^8.22.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}
