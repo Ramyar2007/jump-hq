@@ -14,6 +14,7 @@ import { Runner } from './runner.js';
 import { Publisher, githubToken } from './publish.js';
 import { listAgents, AGENTS } from './agents.js';
 import { Judge } from './judge.js';
+import { words } from './words.js';
 import { Telegram, Tunnel, Beacon, lanUrl, claudeStatus, githubStatus } from './connect.js';
 import QRCode from 'qrcode';
 const AGENT_FROM = Object.fromEntries(Object.entries(AGENTS).map(([k, a]) => [k, a.from]));
@@ -25,6 +26,7 @@ const DATA = process.env.HQ_DATA ? path.resolve(process.env.HQ_DATA) : path.join
 
 const config = new Config(path.join(DATA, 'config.json'));
 const store = new Store(path.join(DATA, 'db.json'));
+const say = words(config);
 
 // CLI: node server/index.js --set-password <pw>
 const pwFlag = process.argv.indexOf('--set-password');
@@ -42,13 +44,13 @@ const wss = new WebSocketServer({ noServer: true });
 const clients = new Set();
 const broadcast = (msg) => { const s = JSON.stringify(msg); for (const c of clients) if (c.readyState === 1) c.send(s); };
 
-const runner = new Runner({ store, config, root: ROOT, dataDir: DATA, port: PORT, broadcast });
+const runner = new Runner({ store, config, root: ROOT, dataDir: DATA, port: PORT, broadcast, say });
 const publisher = new Publisher({ sitesDir: runner.sitesDir, config });
 store.onChange((kind, payload) => broadcast({ type: 'change', kind, payload }));
 const judge = new Judge({ store, config, root: ROOT, sitesDir: runner.sitesDir });
 const telegram = new Telegram(config);
 const beacon = new Beacon({ config, token: githubToken });
-const tunnel = new Tunnel({ port: PORT, onUrl: (u) => { broadcast({ type: 'link', url: u }); if (u) { store.log(`Phone link is live: ${u}`, { kind: 'note' }); beacon.publish(u); } } });
+const tunnel = new Tunnel({ port: PORT, onUrl: (u) => { broadcast({ type: 'link', url: u }); if (u) { store.log(say('phone_live', { u }), { kind: 'note' }); beacon.publish(u); } } });
 
 // ---- sessions -------------------------------------------------------------
 // A session is a browser cookie or a paired phone. Phones send "Authorization: Bearer <token>".
@@ -131,7 +133,7 @@ function issueDevice(name) {
   const dev = { kind: 'device', id: crypto.randomBytes(5).toString('hex'), name: String(name || 'Phone').slice(0, 60), created: Date.now(), seen: Date.now(), exp: Date.now() + DEVICE_DAYS * 864e5 };
   sessions.set(t, dev);
   saveSessions();
-  store.log(`Phone paired: ${dev.name}`, { kind: 'done' });
+  store.log(say('phone_paired', { name: dev.name }), { kind: 'done' });
   return { token: t, company: config.data.company.name, lang: config.data.ui_language, beacon: beacon.rawUrl };
 }
 app.post('/api/pair/claim', (req, res) => {
@@ -251,13 +253,13 @@ function syncMode() {
   wasAsleep = now;
   if (now) {
     meta().night = { start: new Date().toISOString(), end: null, next_search: 0 };
-    store.log('Sleep mode on: the team works alone and the Judge approves. Anything risky waits for you.', { kind: 'start' });
+    store.log(say('sleep_on'), { kind: 'start' });
     telegram.notify('😴 Jump HQ is in Sleep mode. The team keeps working; the Judge approves safe work and holds anything risky for you.');
     catchUp();
   } else {
     if (meta().night && !meta().night.end) meta().night.end = new Date().toISOString();
     const r = night();
-    store.log(r ? nightLine(r) : 'Awake mode: you approve everything again.', { kind: 'done' });
+    store.log(r ? nightLine(r) : say('awake'), { kind: 'done' });
     if (r) telegram.notify(`☀️ ${nightLine(r)}`);
   }
   store.save();
@@ -278,10 +280,10 @@ async function publishDemo(lead, { auto = false } = {}) {
   const site = siteOf(lead);
   if (!site) throw new Error('This business has no demo yet.');
   if (!site.public_url) {
-    store.log(`Putting ${lead.business}'s demo online…`, { kind: 'queue' });
+    store.log(say('putting_online', { b: lead.business }), { kind: 'queue' });
     const url = await publisher.publish(site.slug);
     store.upsertSite({ slug: site.slug, public_url: url, published_at: new Date().toISOString(), auto });
-    store.log(`${lead.business}'s demo is online${auto ? ' (approved by the Judge)' : ''}: ${url}`, { kind: 'done' });
+    store.log(say(auto ? 'online_judge' : 'online', { b: lead.business, u: url }), { kind: 'done' });
   }
   const hasDraft = store.data.approvals.some((a) => a.lead_id === lead.id && ['email', 'whatsapp'].includes(a.type) && ['pending', 'approved'].includes(a.status));
   const writing = store.data.runs.some((r) => r.lead_id === lead.id && r.agent === 'writer' && ['queued', 'running'].includes(r.status));
@@ -298,9 +300,9 @@ async function reviewDemo(leadId) {
   store.upsertSite({ slug: site.slug, judging: true });
   const v = await judge.judge('demo', site, { lead });
   store.upsertSite({ slug: site.slug, judge: v, judging: false });
-  store.log(`Judge on ${lead.business}'s demo: ${v.score}/100, ${v.passes ? 'safe to put online' : 'held for you'}${v.summary ? `. ${v.summary}` : ''}`, { kind: v.passes ? 'done' : 'approval' });
+  store.log(say(v.passes ? 'judge_demo_ok' : 'judge_demo_hold', { b: lead.business, s: v.score, sum: v.summary }), { kind: v.passes ? 'done' : 'approval' });
   if (asleep() && v.passes && config.data.sleep.auto_publish) {
-    try { await publishDemo(lead, { auto: true }); } catch (e) { store.log(`Could not put ${lead.business}'s demo online: ${e.message}`, { kind: 'error' }); }
+    try { await publishDemo(lead, { auto: true }); } catch (e) { store.log(say('online_fail', { b: lead.business, e: e.message }), { kind: 'error' }); }
   } else if (asleep() && !v.passes) telegram.notify(`⏸ The Judge held ${lead.business}'s demo for you: ${v.summary}`);
 }
 
@@ -315,7 +317,7 @@ async function reviewMessage(aid) {
   const v = await judge.judge('message', a, { lead, demoUrl: site?.public_url || '' });
   a = store.getApproval(aid);
   a.judging = false; a.judge = v; store.save(); store.emit('approval', a);
-  store.log(`Judge on the message to ${lead?.business || a.to}: ${v.score}/100, ${v.passes ? (v.revised ? 'safe after small fixes' : 'safe to send') : 'held for you'}${v.summary ? `. ${v.summary}` : ''}`, { kind: v.passes ? 'done' : 'approval' });
+  store.log(say(v.passes ? (v.revised ? 'judge_msg_fix' : 'judge_msg_ok') : 'judge_msg_hold', { b: lead?.business || a.to, s: v.score, sum: v.summary }), { kind: v.passes ? 'done' : 'approval' });
   if (!asleep() || a.status !== 'pending') return;
   if (!v.passes) return telegram.notify(`⏸ The Judge held a message to ${lead?.business || a.to}: ${v.summary}`);
   if (v.revised) { a.original = { subject: a.subject, body: a.body }; a.subject = v.revised.subject || a.subject; a.body = v.revised.body; }
@@ -324,11 +326,11 @@ async function reviewMessage(aid) {
   const cap = Math.min(config.data.outreach.daily_send_cap - st.sentToday, config.data.sleep.max_sends - sentTonight());
   const canMail = a.type === 'email' && config.data.sleep.auto_send && config.data.outreach.sender === 'smtp' && config.data.smtp.user && config.data.smtp.pass;
   if (canMail && cap > 0) {
-    try { await sendEmail(a); markSent(a); store.log(`Sent by itself to ${a.to} after the Judge approved it.`, { kind: 'done' }); return; }
-    catch (e) { store.log(`Automatic sending failed (${e.message}); the message is ready for you to send.`, { kind: 'error' }); }
+    try { await sendEmail(a); markSent(a); store.log(say('auto_sent', { to: a.to }), { kind: 'done' }); return; }
+    catch (e) { store.log(say('auto_fail', { e: e.message }), { kind: 'error' }); }
   }
   store.decide(a.id, 'approved', { decision_note: 'Approved by the Judge', wa_link: a.type === 'whatsapp' ? waLink(a) : undefined, auto: true });
-  store.log(`${a.type === 'whatsapp' ? 'WhatsApp message' : 'Email'} to ${lead?.business || a.to} approved by the Judge: one tap to send it in the morning.`, { kind: 'done' });
+  store.log(say('auto_ready', { b: lead?.business || a.to }), { kind: 'done' });
 }
 
 // Night plan: when the team is idle in Sleep mode, start the next planned search.
@@ -446,7 +448,7 @@ function startHunt(body) {
   const build = Math.max(0, Math.min(target, Number(body.build ?? 3)));
   const h = store.addHunt({ market_id: market.id, city, niche, target, build_max: build });
   runner.enqueue('scout', { niche, city, count: target, build, hunt_id: h.id, market_id: market.id }, { autopilot: true });
-  store.log(`New search: ${target} ${niche} in ${city}`, { kind: 'start' });
+  store.log(say('new_search', { n: target, niche, city }), { kind: 'start' });
   return huntView(store.getHunt(h.id));
 }
 api.post('/hunts', (req, res) => { try { res.json(startHunt(req.body || {})); } catch (e) { res.status(400).json({ error: e.message }); } });
@@ -491,7 +493,7 @@ function markSent(a) {
   store.decide(a.id, 'sent', { sent_at: new Date().toISOString() });
   const what = a.type === 'whatsapp' ? 'WhatsApp message' : 'Email';
   if (a.lead_id) { const l = store.getLead(a.lead_id); if (l && !['replied', 'won'].includes(l.stage)) store.updateLead(a.lead_id, { stage: 'sent' }, `${what} sent`); }
-  store.log(`${what} sent to ${a.to}`, { kind: 'done' });
+  store.log(say('sent', { to: a.to }), { kind: 'done' });
 }
 // The main message only: the English copy under it is for the owner to read.
 const mainText = (body) => String(body || '').split(/\n\s*-{3,}\s*\n|\n\s*\(?English( version| translation)?\)?\s*:?\s*\n/i)[0].trim();
@@ -514,7 +516,7 @@ api.post('/approvals/:id/decide', async (req, res) => {
   if (to !== undefined) a.to = to;
   if (decision === 'reject') {
     store.decide(a.id, 'rejected', { decision_note: note || '' });
-    store.log(`Rejected: ${a.title}`, { kind: 'error' });
+    store.log(say('rejected', { t: a.title }), { kind: 'error' });
     return res.json(store.getApproval(a.id));
   }
   if (decision !== 'approve') { store.save(); return res.json(a); }
@@ -522,7 +524,7 @@ api.post('/approvals/:id/decide', async (req, res) => {
     const st = stats();
     if (st.sentToday >= config.data.outreach.daily_send_cap) return res.status(400).json({ error: `Daily limit (${config.data.outreach.daily_send_cap}) reached. Send more tomorrow or raise it in Settings.` });
     store.decide(a.id, 'approved', { decision_note: note || '', wa_link: waLink(a) });
-    store.log(`Approved: ${a.title}`, { kind: 'done' });
+    store.log(say('approved', { t: a.title }), { kind: 'done' });
     return res.json(store.getApproval(a.id));
   }
   if (a.type === 'email') {
@@ -534,7 +536,7 @@ api.post('/approvals/:id/decide', async (req, res) => {
       catch (e) { return res.status(500).json({ error: `Sending failed: ${e.message}` }); }
     }
     store.decide(a.id, 'approved', { decision_note: note || '' });
-    store.log(`Approved: ${a.title} (send it from your mailbox, then mark as sent)`, { kind: 'done' });
+    store.log(say('approved', { t: a.title }), { kind: 'done' });
     return res.json(store.getApproval(a.id));
   }
   store.decide(a.id, 'approved', { decision_note: note || '' });
@@ -625,7 +627,7 @@ agent.post('/leads', (req, res) => {
   const run = req.runId && store.getRun(req.runId);
   const hunt = store.getHunt(b.hunt_id || run?.hunt_id);
   const { lead, duplicate } = store.addLead({ ...b, hunt_id: hunt?.id || null, market_id: hunt?.market_id || config.data.market_id });
-  if (!duplicate) { lead.found_by_run = req.runId; store.save(); store.log(`Found ${lead.business}${lead.area ? `, ${lead.area}` : ''} (${lead.city})`, { run_id: req.runId, kind: 'lead' }); }
+  if (!duplicate) { lead.found_by_run = req.runId; store.save(); store.log(say('found', { b: lead.business, city: [lead.area, lead.city].filter(Boolean).join(', ') }), { run_id: req.runId, kind: 'lead' }); }
   res.json({ id: lead.id, duplicate, message: duplicate ? 'Already in the pipeline, skipped.' : 'Added.' });
 });
 agent.patch('/leads/:id', (req, res) => {
@@ -645,7 +647,7 @@ agent.post('/leads/:id/profile', (req, res) => {
   if (l.stage === 'new') patch.stage = p.verdict === 'pass' ? 'profiled' : 'skipped';
   if (p.verdict === 'fail') patch.reason = (p.red_flags || []).join('; ') || 'Could not confirm it is real, active and reachable';
   store.updateLead(l.id, patch, p.verdict === 'pass' ? `Profile done${p.rating ? ` (${p.rating}${p.review_count ? ` from ${p.review_count} reviews` : ''})` : ''}` : `Not verified: ${patch.reason}`);
-  store.log(`${l.business}: ${p.verdict === 'pass' ? 'profile ready' : 'could not be verified, skipped'}`, { run_id: req.runId, kind: p.verdict === 'pass' ? 'done' : 'error' });
+  store.log(say(p.verdict === 'pass' ? 'profile_ok' : 'profile_fail', { b: l.business }), { run_id: req.runId, kind: p.verdict === 'pass' ? 'done' : 'error' });
   res.json({ ok: true });
 });
 agent.post('/leads/:id/opportunity', (req, res) => {
@@ -656,13 +658,13 @@ agent.post('/leads/:id/opportunity', (req, res) => {
   o.decision = o.score >= q.threshold ? 'build' : o.score >= q.hold ? 'hold' : 'skip';
   const stage = { build: 'qualified', hold: 'hold', skip: 'skipped' }[o.decision];
   store.updateLead(l.id, { opportunity: o, stage: ['new', 'profiled', 'hold', 'qualified'].includes(l.stage) ? stage : l.stage, ...(o.decision === 'skip' ? { reason: `Score ${o.score}/100: not worth a demo` } : {}) }, `Opportunity ${o.score}/100 (${o.decision})`);
-  store.log(`${l.business}: ${o.score}/100, ${{ build: 'worth building', hold: 'kept for later', skip: 'skipped' }[o.decision]}`, { run_id: req.runId, kind: o.decision === 'build' ? 'lead' : 'note' });
+  store.log(say(`score_${o.decision}`, { b: l.business, s: o.score }), { run_id: req.runId, kind: o.decision === 'build' ? 'lead' : 'note' });
   res.json({ ok: true, decision: o.decision });
 });
 agent.post('/leads/:id/plan', (req, res) => {
   const l = leadOr404(req, res); if (!l) return;
   store.updateLead(l.id, { plan: { ...req.body, at: new Date().toISOString() }, ...(l.stage === 'qualified' ? { stage: 'planned' } : {}) }, `Plan: ${req.body.product}`);
-  store.log(`${l.business}: plan ready (${req.body.product})`, { run_id: req.runId, kind: 'done' });
+  store.log(say('plan', { b: l.business, p: req.body.product }), { run_id: req.runId, kind: 'done' });
   res.json({ ok: true });
 });
 agent.post('/leads/:id/review', (req, res) => {
@@ -670,7 +672,7 @@ agent.post('/leads/:id/review', (req, res) => {
   const r = { ...req.body, at: new Date().toISOString() };
   const stage = { approve: 'approved', hold: 'hold', reject: 'skipped' }[r.verdict];
   store.updateLead(l.id, { review: r, stage: ['planned', 'qualified'].includes(l.stage) ? stage : l.stage, ...(r.verdict === 'reject' ? { reason: r.summary } : {}) }, `Reviewer: ${r.verdict}`);
-  store.log(`${l.business}: ${{ approve: 'approved for a demo', hold: 'on hold', reject: 'rejected by the Reviewer' }[r.verdict]}`, { run_id: req.runId, kind: r.verdict === 'approve' ? 'done' : 'note' });
+  store.log(say(`rv_${r.verdict}`, { b: l.business }), { run_id: req.runId, kind: r.verdict === 'approve' ? 'done' : 'note' });
   res.json({ ok: true });
 });
 agent.post('/sites', (req, res) => {
@@ -680,7 +682,7 @@ agent.post('/sites', (req, res) => {
   if (!fs.existsSync(path.join(dir, 'index.html'))) return res.status(400).json({ error: `No index.html found in ${dir}. Write the site first.` });
   const site = store.upsertSite({ slug, lead_id: lead.id, business: lead.business, city: lead.city, summary: String(req.body.summary || ''), local_url: `/d/${slug}/` });
   store.updateLead(lead.id, { stage: ['sent', 'replied', 'won', 'email_drafted'].includes(lead.stage) ? lead.stage : 'demo_built', demo: { slug } }, 'Demo built');
-  store.log(`Demo ready: ${lead.business}`, { run_id: req.runId, kind: 'done' });
+  store.log(say('demo_ready', { b: lead.business }), { run_id: req.runId, kind: 'done' });
   res.json({ ok: true, slug, preview: site.local_url, note: 'The owner will review and publish it.' });
   setTimeout(() => reviewDemo(lead.id).catch(() => {}), 1000);
 });
@@ -690,7 +692,7 @@ agent.post('/approvals', (req, res) => {
     const l = store.getLead(a.lead_id);
     if (l && ['new', 'qualified', 'approved', 'demo_built'].includes(l.stage)) store.updateLead(l.id, { stage: 'email_drafted' }, 'Message written, waiting for you');
   }
-  store.log(`Needs your approval: ${a.title}`, { run_id: req.runId, kind: 'approval' });
+  store.log(say('needs_you', { t: a.title }), { run_id: req.runId, kind: 'approval' });
   res.json({ ok: true, id: a.id, message: 'Queued for the owner. Do not try to send it yourself.' });
   if (['email', 'whatsapp'].includes(a.type)) { if (!asleep()) telegram.notify(`✉️ A message to ${store.getLead(a.lead_id)?.business || a.to} is waiting for your approval.`); setTimeout(() => reviewMessage(a.id).catch(() => {}), 500); }
 });

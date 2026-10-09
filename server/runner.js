@@ -10,7 +10,8 @@ import { id, slugify } from './db.js';
 const CLAUDE = process.env.CLAUDE_BIN || (process.platform === 'win32' ? path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe') : 'claude');
 
 export class Runner {
-  constructor({ store, config, root, dataDir, port, broadcast }) {
+  constructor({ store, config, root, dataDir, port, broadcast, say }) {
+    this.say = say || ((k) => k);
     this.store = store;
     this.config = config;
     this.root = root;
@@ -202,7 +203,7 @@ export class Runner {
     this.procs.set(run.id, child);
     this.store.updateRun(run.id, { status: 'running', started: new Date().toISOString(), pid: child.pid });
     const what = run.title.split(' · ').slice(1).join(' · ');
-    this.store.log(`${agent.name} started${what ? ` on ${what}` : ''}`, { run_id: run.id, kind: 'start' });
+    this.store.log(this.say('started', { a: agent.name, w: what }), { run_id: run.id, kind: 'start' });
 
     const emit = (ev) => {
       const e = { at: new Date().toISOString(), ...ev };
@@ -232,7 +233,7 @@ export class Runner {
       const fin = this.store.getRun(run.id);
       const what2 = run.title.split(' · ').slice(1).join(' · ');
       const how = { done: 'finished', failed: 'ran into a problem with', stopped: 'was stopped on', cancelled: 'was cancelled on' }[fin.status] || fin.status;
-      this.store.log(`${agent.name} ${how}${what2 ? ` ${what2}` : ''}${fin.status === 'failed' && fin.error ? `: ${String(fin.error).split(/\r?\n/)[0].slice(0, 140)}` : ''}`, { run_id: run.id, kind: fin.status === 'done' ? 'done' : 'error' });
+      this.store.log(`${['done', 'failed', 'stopped'].includes(fin.status) ? this.say({ done: 'finished', failed: 'failed', stopped: 'stopped' }[fin.status], { a: agent.name, w: what2 }) : `${agent.name} ${how} ${what2}`}${fin.status === 'failed' && fin.error ? `: ${String(fin.error).split(/\r?\n/)[0].slice(0, 140)}` : ''}`, { run_id: run.id, kind: fin.status === 'done' ? 'done' : 'error' });
       this.afterRun(fin);
       this.tick();
     });
@@ -336,7 +337,7 @@ export class Runner {
       this.store.updateHunt(hid, { status: 'done', ended: new Date().toISOString() });
       const f = this.store.data.leads.filter((l) => l.hunt_id === hid);
       const demos = f.filter((l) => l.stage === 'demo_built').length;
-      this.store.log(`Search finished: ${f.length} ${h.niche} in ${h.city} checked${demos ? `, ${demos} demo${demos > 1 ? 's' : ''} ready for you` : ''}.`, { kind: 'done' });
+      this.store.log(this.say('search_done', { n: f.length, niche: h.niche, city: h.city, d: demos }), { kind: 'done' });
     }
   }
 
