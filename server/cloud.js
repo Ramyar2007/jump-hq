@@ -26,7 +26,7 @@ const BASE_PORT = 6100;
 export const PLANS = {
   trial: { name: 'Free trial', price: 0, jobs: 6, days: 7 },
   starter: { name: 'Pro', price: 20, jobs: 25 },
-  pro: { name: 'Agency', price: 70, jobs: 80 },
+  pro: { name: 'Agency', price: 60, jobs: 80 },
 };
 
 fs.mkdirSync(path.join(DATA, 'tenants'), { recursive: true });
@@ -189,7 +189,7 @@ async function cloudApi(req, res, url) {
     const a = accountOf(req);
     if (!a) return json(res, 401, { error: 'Not signed in' });
     const b = await readBody(req);
-    if (!PLANS[b.plan] || b.plan === 'trial') return json(res, 400, { error: 'Pick Starter or Pro.' });
+    if (!PLANS[b.plan] || b.plan === 'trial') return json(res, 400, { error: 'Pick Pro or Agency.' });
     a.plan = b.plan; a.paid = false; a.plan_requested = new Date().toISOString(); save();
     const p = procs.get(a.id); if (p) { p.child.kill(); procs.delete(a.id); }
     return json(res, 200, { ok: true, message: `You are on ${PLANS[b.plan].name}. We will send the payment details (FIB, card or bank) to ${a.email}.` });

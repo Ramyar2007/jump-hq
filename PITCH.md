@@ -67,11 +67,11 @@ Sign up at the website, and your own private Jump HQ is ready in seconds. No ins
 |---|---|---|
 | Free trial | $0 for 7 days | trying both modes |
 | **Pro** | **$20 / month** (≈26,000 IQD) | one freelancer or one online shop: both modes, 25 team jobs a day |
-| **Agency** | **$70 / month** (≈91,000 IQD) | agencies and teams: several brands, 80 team jobs a day |
+| **Agency** | **$60 / month** (≈78,000 IQD) | agencies and teams: several brands, 80 team jobs a day |
 
 Payment: FIB, card or bank transfer (works from Iraq).
 
-**Our cost** (measured): about $0.11 per free sample, $0.05 per message, $0.03 per Judge check and about $0.16 for a batch of posts. A Pro user costs us about **$4–6 a month**, so $20 leaves **~70% margin**. Agency is ~3× the work for 3.5× the price.
+**Our cost** (measured): about $0.11 per free sample, $0.05 per message, $0.03 per Judge check and about $0.16 for a batch of posts. A Pro user costs us about **$4–6 a month**, so $20 leaves **~70% margin**. Agency is ~3× the work for 3× the price.
 
 **Why they pay:** one client won pays for more than a year of Pro.
 
@@ -79,7 +79,7 @@ Payment: FIB, card or bank transfer (works from Iraq).
 
 - **Our own use:** we run Jump HQ for our AI video ad work first, as customer number one.
 - **Subscriptions:** 15 freelancers and online shops from the hackathon network and Sulaimani seller groups on Pro ≈ **$300 / month** recurring.
-- **Month 3 target:** 60 paying users (mostly Pro, some Agency) ≈ **$1,500 / month** recurring.
+- **Month 3 target:** 60 paying users (50 Pro, 10 Agency) ≈ **$1,600 / month** recurring.
 
 ## 3-minute script (Round 1)
 
@@ -97,7 +97,7 @@ Payment: FIB, card or bank transfer (works from Iraq).
 - Grow: this week's posts and a short video, then tap **Post now**.
 - Switch to Sleep.
 
-**2:00–2:40 Money.** "It's a subscription. Sign up and your team is working in seconds. Pro is 20 dollars a month, Agency is 70. Our customers already earn online, so one client pays for a year. The cheap model does most of the work, and plan limits keep every customer profitable."
+**2:00–2:40 Money.** "It's a subscription. Sign up and your team is working in seconds. Pro is 20 dollars a month, Agency is 60. Our customers already earn online, so one client pays for a year. The cheap model does most of the work, and plan limits keep every customer profitable."
 
 **2:40–3:00 Close.** "Built at this hackathon: the Judge, Sleep mode, Grow mode, the phone app, setup for any business, Kurdish and Arabic. Jump HQ gives every online seller in Sulaimani a team that never sleeps."
 
