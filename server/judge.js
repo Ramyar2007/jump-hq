@@ -22,24 +22,39 @@ function pageText(html) {
     .trim();
 }
 
+// Rule messages in the owner's language.
+const RULES = {
+  empty: ['The message is empty.', 'نامەکە بەتاڵە.', 'الرسالة فارغة.'],
+  email: ['The "to" address is not a real email address.', 'ناونیشانی وەرگر ئیمەیڵێکی دروست نییە.', 'عنوان المستلم ليس بريداً إلكترونياً صحيحاً.'],
+  wa: ['There is no valid WhatsApp number.', 'ژمارەیەکی دروستی واتسئاپ نییە.', 'لا يوجد رقم واتساب صحيح.'],
+  nolink: ['The message does not link to the demo website.', 'نامەکە بەستەری ماڵپەڕی نموونەی تێدا نییە.', 'الرسالة لا تحتوي على رابط الموقع التجريبي.'],
+  links: ['Too many links: it would look like spam.', 'بەستەری زۆری تێدایە: وەک سپام دەردەکەوێت.', 'روابط كثيرة جداً: ستبدو كرسائل مزعجة.'],
+  placeholder: ['The message still has placeholder text in it.', 'نامەکە هێشتا دەقی کاتی تێدایە.', 'الرسالة ما زالت تحتوي على نص مؤقت.'],
+  page: ['The page is almost empty.', 'پەڕەکە نزیکەی بەتاڵە.', 'الصفحة شبه فارغة.'],
+  concept: ['The "concept website, not the official site" notice is missing.', 'ئاگاداری "ماڵپەڕی نموونە، نەک ماڵپەڕی فەرمی" نییە.', 'إشعار "موقع تجريبي وليس الموقع الرسمي" مفقود.'],
+  pageholder: ['The page still has placeholder text.', 'پەڕەکە هێشتا دەقی کاتی تێدایە.', 'الصفحة ما زالت تحتوي على نص مؤقت.'],
+  failed: ['The Judge could not check this', 'دادوەر نەیتوانی ئەمە بپشکنێت', 'لم يتمكن الحَكَم من فحص هذا'],
+};
+const rule = (k, lang) => RULES[k][{ en: 0, ckb: 1, ar: 2 }[lang] ?? 0];
+
 // Checks that never depend on the model.
-function hardChecks(kind, item, ctx) {
+function hardChecks(kind, item, ctx, lang = 'en') {
   const fails = [];
   if (kind === 'message') {
     const body = String(item.body || '');
     const links = body.match(/https?:\/\/\S+/g) || [];
-    if (!body.trim()) fails.push('The message is empty.');
-    if (item.type === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(item.to || '')) fails.push('The "to" address is not a real email address.');
-    if (item.type === 'whatsapp' && String(item.to || '').replace(/\D/g, '').length < 8) fails.push('There is no valid WhatsApp number.');
-    if (ctx.demoUrl && !body.includes(ctx.demoUrl.replace(/\/$/, ''))) fails.push('The message does not link to the demo website.');
-    if (links.length > 2) fails.push('Too many links: it would look like spam.');
-    if (/lorem ipsum|\[(your|business|name)[^\]]*\]|{{|TODO/i.test(body)) fails.push('The message still has placeholder text in it.');
+    if (!body.trim()) fails.push(rule('empty', lang));
+    if (item.type === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(item.to || '')) fails.push(rule('email', lang));
+    if (item.type === 'whatsapp' && String(item.to || '').replace(/\D/g, '').length < 8) fails.push(rule('wa', lang));
+    if (ctx.demoUrl && !body.includes(ctx.demoUrl.replace(/\/$/, ''))) fails.push(rule('nolink', lang));
+    if (links.length > 2) fails.push(rule('links', lang));
+    if (/lorem ipsum|\[(your|business|name)[^\]]*\]|{{|TODO/i.test(body)) fails.push(rule('placeholder', lang));
   }
   if (kind === 'demo') {
     const text = ctx.text || '';
-    if (text.length < 300) fails.push('The page is almost empty.');
-    if (!/concept/i.test(text) && !/نموونە|نموذج|پێشنیار/.test(text)) fails.push('The "concept website, not the official site" notice is missing.');
-    if (/lorem ipsum|TODO|placeholder/i.test(text)) fails.push('The page still has placeholder text.');
+    if (text.length < 300) fails.push(rule('page', lang));
+    if (!/concept/i.test(text) && !/نموونە|نموذج|پێشنیار/.test(text)) fails.push(rule('concept', lang));
+    if (/lorem ipsum|TODO|placeholder/i.test(text)) fails.push(rule('pageholder', lang));
   }
   return fails;
 }
@@ -150,7 +165,7 @@ export class Judge {
       const file = path.join(this.sitesDir, item.slug, 'index.html');
       ctx.text = fs.existsSync(file) ? pageText(fs.readFileSync(file, 'utf8')) : '';
     }
-    const fails = hardChecks(kind, item, ctx);
+    const fails = hardChecks(kind, item, ctx, cfg.ui_language);
     const at = new Date().toISOString();
     if (fails.length) return { verdict: 'hold', score: 0, risk: 'high', summary: fails[0], reasons: fails, revised: null, by: 'rules', at };
     this.busy++;
@@ -170,10 +185,10 @@ export class Judge {
       const min = cfg.sleep.judge_min_score;
       out.passes = (out.verdict === 'approve' || (out.verdict === 'revise' && out.revised)) && out.score >= min && out.risk === 'low';
       // a revised message must still pass the hard rules
-      if (out.revised && hardChecks(kind, { ...item, ...out.revised }, ctx).length) { out.passes = false; out.verdict = 'hold'; }
+      if (out.revised && hardChecks(kind, { ...item, ...out.revised }, ctx, cfg.ui_language).length) { out.passes = false; out.verdict = 'hold'; }
       return out;
     } catch (e) {
-      return { verdict: 'hold', score: 0, risk: 'high', summary: `The Judge could not check this: ${e.message}`, reasons: [], revised: null, by: 'error', at, passes: false };
+      return { verdict: 'hold', score: 0, risk: 'high', summary: `${rule('failed', cfg.ui_language)}: ${e.message}`, reasons: [], revised: null, by: 'error', at, passes: false };
     } finally { this.busy--; }
   }
 }

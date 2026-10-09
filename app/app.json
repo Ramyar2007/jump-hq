@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Jump HQ",
+    "slug": "jump-hq",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "jumphq",
+    "backgroundColor": "#0f1b33",
+    "description": "Jump HQ: your AI team that finds local businesses, builds them free demo websites and writes the first message. Awake or Sleep mode with an AI Judge. English, Kurdish, Arabic.",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.jumpagency.hq",
+      "infoPlist": { "NSCameraUsageDescription": "Jump HQ uses the camera to scan the pairing code on your computer." }
+    },
+    "android": {
+      "package": "org.jumpagency.hq",
+      "adaptiveIcon": { "backgroundColor": "#ff6b2c", "foregroundImage": "./assets/adaptive-icon.png" },
+      "permissions": ["CAMERA", "android.permission.CAMERA"],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/icon.png" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      ["expo-splash-screen", { "image": "./assets/splash.png", "imageWidth": 140, "resizeMode": "contain", "backgroundColor": "#0f1b33" }],
+      ["expo-camera", { "cameraPermission": "Jump HQ uses the camera to scan the pairing code on your computer.", "recordAudioAndroid": false }]
+    ],
+    "experiments": { "typedRoutes": false },
+    "owner": "ramahsha"
+  }
+}

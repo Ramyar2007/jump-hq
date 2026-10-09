@@ -1,3 +1,4 @@
+// GENERATED from public/i18n.js by scripts/sync-app-i18n.mjs. Edit that file, then run: npm run sync
 // UI language: English (default), Kurdish Sorani and Arabic (both right-to-left).
 // Each row: [English, Kurdish Sorani, Arabic]. The English text is the key used in the code: t('...').
 export const LANGS = [
@@ -435,7 +436,7 @@ for (const [en, ckb, ar] of ROWS) { DICT.ckb[en] = ckb; DICT.ar[en] = ar; }
 let lang = 'en';
 export function setLang(code) {
   lang = LANGS.some((l) => l.code === code) ? code : 'en';
-  if (typeof document !== 'undefined') {
+  if (false) {
     document.documentElement.lang = lang;
     document.documentElement.dir = LANGS.find((l) => l.code === lang).rtl ? 'rtl' : 'ltr';
   }

@@ -92,6 +92,13 @@ app.set('trust proxy', 'loopback');
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use((req, res, next) => { res.set({ 'x-frame-options': 'SAMEORIGIN', 'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin' }); next(); });
+// The phone app (and its web build) call the API with a Bearer key, never cookies, so any origin is fine.
+app.use('/api', (req, res, next) => {
+  if (!req.get('origin')) return next();
+  res.set({ 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE' });
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
 // The agents' private API is never reachable from the internet, only from this computer.
 app.use('/agent-api', (req, res, next) => (viaTunnel(req) ? res.status(404).end() : next()));
 app.get('/api/ping', (req, res) => res.json({ ok: true, app: 'jump-hq' }));
